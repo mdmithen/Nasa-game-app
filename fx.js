@@ -774,7 +774,28 @@ function installScreenTransitions() {
 
   var original = window.showScreen;
 
+  /* The transition that is currently fading out, so that a newer
+     screen request can stop it. Without these two handles the 340ms
+     timer below is invisible: a later showScreen() call cannot cancel
+     an earlier one, so the old timer fires afterwards and drags the
+     player back to the screen they had already left. */
+  var pendingTimer = null;
+  var pendingFade = null;
+
+  function cancelPending() {
+    if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; }
+    /* cancelling the fade returns the screen to its normal opacity, so
+       the screen we stay on is not left invisible */
+    if (pendingFade) {
+      if (typeof pendingFade.cancel === 'function') { pendingFade.cancel(); }
+      pendingFade = null;
+    }
+  }
+
   window.showScreen = function (name) {
+    /* the newest request always wins */
+    cancelPending();
+
     if (!canAnimate) { original(name); return; }
 
     var current = document.querySelector('.screen:not([hidden])');
@@ -800,6 +821,8 @@ function installScreenTransitions() {
     function finish() {
       if (done) { return; }
       done = true;
+      if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; }
+      pendingFade = null;
 
       original(name);
       onScreenChanged(name);
@@ -810,8 +833,9 @@ function installScreenTransitions() {
       ], { duration: 420, easing: 'cubic-bezier(.2,.9,.3,1)', fill: 'backwards' });
     }
 
+    pendingFade = animation;
     if (animation) { animation.onfinish = finish; }
-    setTimeout(finish, 340);
+    pendingTimer = setTimeout(finish, 340);
   };
 }
 
