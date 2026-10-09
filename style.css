@@ -1253,7 +1253,10 @@ button:focus-visible {
   touch-action: none;          /* the player, not the page, handles drags */
 }
 
-/* ---------- HUD ---------- */
+/* ---------- HUD ----------
+   A slim bar across the top, a thin resource strip under it, and one
+   small card in the top right corner. Everything else on screen belongs
+   to the Moon Base. */
 
 .hud {
   position: absolute;
@@ -1267,54 +1270,137 @@ button:focus-visible {
   top: 0; left: 0; right: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 10px 14px;
-  background: linear-gradient(180deg, rgba(5, 11, 28, .92), rgba(5, 11, 28, 0));
+  gap: 8px;
+  flex-wrap: nowrap;
+  padding: 5px 10px;
+  background: linear-gradient(180deg, rgba(5, 11, 28, .9), rgba(5, 11, 28, 0));
 }
 
 .hud-spacer { flex: 1 1 auto; }
 
 .hud-chip {
-  font-size: .78rem;
+  font-size: .7rem;
   font-weight: 700;
   color: var(--grey);
   background: rgba(10, 20, 48, .8);
   border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 5px 12px;
+  padding: 3px 10px;
   white-space: nowrap;
 }
 
-.hud-chip strong { color: var(--white); font-size: .95rem; }
+.hud-chip strong { color: var(--white); font-size: .82rem; }
 
 .hud-top .btn { pointer-events: auto; }
 
-.hud-left  { position: absolute; top: 62px; left: 14px; width: 260px; }
-.hud-right { position: absolute; top: 62px; right: 14px; width: 280px; }
+/* ---- the slim resource strip ---- */
+
+.hud-strip {
+  position: absolute;
+  top: 33px;
+  left: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(700px, calc(100% - 230px));
+}
+
+.strip-label {
+  font-size: .54rem;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--cyan-dim);
+  font-weight: 700;
+}
+
+.hud-strip .resource-grid {
+  display: flex;
+  gap: 5px;
+  flex-wrap: nowrap;          /* one slim row, never a tall two row block */
+}
+
+.hud-strip .res-card {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: rgba(10, 20, 48, .78);
+}
+
+/* chips stay put: no hover lift on a piece of HUD */
+.hud-strip .res-card:hover { transform: none; }
+
+.hud-strip .res-top { margin: 0; gap: 4px; }
+.hud-strip .res-icon { font-size: .8rem; }
+.hud-strip .res-name { display: none; }
+.hud-strip .res-short {
+  display: block;
+  font-size: .55rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+  color: var(--grey);
+}
+.hud-strip .res-number { margin-left: 0; font-size: .78rem; }
+.hud-strip .res-track { width: 34px; height: 5px; flex: none; }
+.hud-strip .res-delta { display: none; }
+
+/* ---- the mission card ---- */
+
+.hud-right { position: absolute; top: 33px; right: 10px; width: 206px; }
 
 .hud-card {
   pointer-events: auto;
   background: rgba(7, 14, 34, .84);
   border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 14px;
+  border-radius: 12px;
+  padding: 9px 10px;
   backdrop-filter: blur(6px);
-  max-height: calc(100% - 90px);
+  max-height: calc(100% - 44px);
   overflow-y: auto;
 }
 
-.hud-card .panel-title { margin-bottom: 12px; }
-.hud-card .disclaimer { font-size: .68rem; }
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.hud-card .panel-title { margin-bottom: 0; font-size: .64rem; }
+
+/* the toggle that folds the long objective list away */
+.btn-toggle {
+  margin-left: auto;
+  font: inherit;
+  font-size: .58rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: var(--cyan);
+  background: rgba(79, 209, 224, .12);
+  border: 1px solid rgba(79, 209, 224, .3);
+  border-radius: 999px;
+  padding: 2px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-toggle:hover { background: rgba(79, 209, 224, .24); }
+
+.hud-card .progress-head { font-size: .68rem; margin-bottom: 4px; }
+.hud-card .progress-track { height: 7px; }
+.hud-card .objective-box { margin-top: 8px; padding: 6px 8px; }
+.hud-card .objective-label { font-size: .54rem; }
+.hud-card .objective-text { font-size: .74rem; margin-top: 2px; line-height: 1.35; }
+.hud-card .objective-list { margin-top: 8px; }
+.hud-card .objective-list li { font-size: .7rem; padding: 4px 0; gap: 6px; }
+.hud-card .obj-icon { font-size: .7rem; }
+.hud-card .disclaimer { margin-top: 8px; font-size: .58rem; line-height: 1.4; }
 .hud-card:hover { transform: none; box-shadow: none; }
 
-/* one resource per row, so long names like "Electricity" are never clipped */
-.hud-card .resource-grid { grid-template-columns: 1fr; gap: 7px; }
-.hud-card .res-card { padding: 8px 10px; }
-.hud-card .res-name { font-size: .62rem; letter-spacing: .03em; }
-.hud-card .res-number { font-size: .95rem; }
-
-.hud-card .objective-list li { font-size: .82rem; padding: 7px 0; }
+/* collapsed by default: only the progress and the current task show */
+.hud-card.is-collapsed .objective-list,
+.hud-card.is-collapsed .disclaimer { display: none; }
 
 .nasa-below {
   margin: 18px auto;
@@ -1470,73 +1556,92 @@ button:focus-visible {
 /* ---------- smaller screens ---------- */
 
 @media (max-width: 900px) {
-  /* The HUD becomes a slim stack at the top so the world keeps
-     most of the screen on a phone. */
+  /* The HUD stays a slim stack along the top so the world keeps most of
+     the screen on a phone. Everything it can hide, it hides. */
   .hud {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 0 8px;
+    gap: 4px;
+    padding: 0 6px;
     max-height: none;
     overflow: hidden;
   }
 
   .hud-top {
     position: static;
-    padding: 6px 2px;
-    gap: 6px;
+    padding: 4px 2px;
+    gap: 5px;
+    flex-wrap: wrap;
     background: none;
   }
 
-  .hud-top .base-badge { font-size: .68rem; }
-  .hud-top .topbar-tag { font-size: .64rem; padding: 3px 8px; }
-  .hud-chip { font-size: .64rem; padding: 3px 9px; }
-  .hud-chip strong { font-size: .78rem; }
-  .hud-top .btn-small { padding: 4px 9px; font-size: .7rem; }
+  .hud-top .base-badge { font-size: .6rem; }
+  .hud-top .topbar-tag { font-size: .56rem; padding: 2px 7px; }
+  .hud-chip { font-size: .56rem; padding: 2px 8px; }
+  .hud-chip strong { font-size: .72rem; }
+  .hud-top .btn-small { padding: 3px 8px; font-size: .62rem; }
 
-  .hud-left, .hud-right { position: static; width: 100%; }
+  /* five tiny bars in one strip, stacked so they stay narrow */
+  .hud-strip {
+    position: static;
+    max-width: none;
+    gap: 0;
+  }
+  .strip-label { display: none; }
+  .hud-strip .resource-grid { display: flex; gap: 4px; }
+  .hud-strip .res-card {
+    flex: 1 1 0;
+    min-width: 0;
+    display: block;
+    text-align: center;
+    padding: 3px 4px;
+    border-radius: 7px;
+  }
+  .hud-strip .res-top { justify-content: center; gap: 3px; margin-bottom: 3px; }
+  .hud-strip .res-icon { font-size: .68rem; }
+  .hud-strip .res-short { font-size: .46rem; }
+  .hud-strip .res-number { font-size: .68rem; }
+  .hud-strip .res-track { width: 100%; height: 4px; }
+
+  .hud-right { position: static; width: 100%; }
 
   .hud-card {
-    padding: 8px 10px;
-    border-radius: 11px;
+    padding: 6px 8px;
+    border-radius: 9px;
     background: rgba(7, 14, 34, .82);
-    /* the desktop rule uses calc(100% - 90px) which collapses to
+    /* the desktop rule uses calc(100% - 44px) which collapses to
        almost nothing once the card is in normal flow. Must reset it. */
     max-height: none;
     overflow: visible;
   }
 
-  .hud-card .panel-title { display: none; }
+  .hud-card .card-head { margin-bottom: 3px; justify-content: flex-end; }
+  .hud-card .panel-title { display: none; }   /* the fold button says it all */
+  .btn-toggle { font-size: .5rem; padding: 1px 7px; }
+
+  .hud-card .progress-head { font-size: .58rem; margin-bottom: 2px; justify-content: flex-end; }
+  #progress-text { display: none; }           /* "0 of 6 objectives complete" is too long for a phone */
+  .hud-card .progress-track { height: 6px; }
+  .hud-card .objective-box { margin-top: 5px; padding: 5px 7px; }
+  .hud-card .objective-label { display: none; }
+  .hud-card .objective-text { font-size: .66rem; line-height: 1.3; }
+
+  /* the long list is folded away by default on a phone too, but the
+     fold button still opens it in a short scrollable box so the game
+     view is never buried */
+  .hud-card .objective-list { max-height: 28vh; overflow-y: auto; }
   .hud-card .disclaimer { display: none; }
-  .hud-card .objective-list { display: none; }
-
-  /* five tiny bars in one row */
-  .hud-card .resource-grid { grid-template-columns: repeat(5, 1fr); gap: 5px; }
-  .hud-card .res-card { padding: 5px 4px; border-radius: 8px; }
-  .hud-card .res-top { gap: 3px; margin-bottom: 5px; justify-content: center; }
-  .hud-card .res-icon { font-size: .85rem; }
-  .hud-card .res-name { display: none; }
-  .hud-card .res-short {
-    display: block;
-    font-size: .56rem;
-    font-weight: 800;
-    letter-spacing: .02em;
-    color: var(--grey);
-  }
-  .hud-card .res-number { margin-left: 0; font-size: .82rem; }
-  .hud-card .res-delta { display: none; }
-  .hud-card .res-track { height: 5px; }
-
-  .progress-head { font-size: .7rem; margin-bottom: 4px; }
-  .progress-track { height: 8px; }
-  .hud-card .objective-box { margin-top: 7px; padding: 6px 9px; }
-  .objective-label { font-size: .52rem; }
-  .objective-text { font-size: .76rem; }
 
   .stage { height: 84vh; height: 84dvh; }
 }
 
 @media (max-width: 560px) {
+  /* keep the top bar on one line: the base name is decoration, the
+     day, crew and buttons are not */
+  .hud-top { flex-wrap: nowrap; }
+  .hud-top .base-badge { display: none; }
+  .hud-chip { padding: 2px 7px; }
+
   .touch-btn { width: 52px; height: 52px; font-size: 1.2rem; }
   .panel-inner { padding: 18px 16px; }
 }

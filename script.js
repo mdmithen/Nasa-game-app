@@ -1671,6 +1671,21 @@ function wireUp() {
 
   el('btn-next-day').addEventListener('click', goToNextDay);
   el('btn-restart').addEventListener('click', startMission);
+
+  /* The mission card starts folded down to just the progress bar and the
+     current task. This button opens the full objective list when the
+     player wants it, and folds it away again so the Moon Base stays
+     clear. */
+  var toggleObjectives = el('btn-toggle-objectives');
+  if (toggleObjectives) {
+    toggleObjectives.addEventListener('click', function () {
+      var card = toggleObjectives.closest('.hud-card');
+      if (!card) { return; }
+      var folded = card.classList.toggle('is-collapsed');
+      toggleObjectives.setAttribute('aria-expanded', folded ? 'false' : 'true');
+      toggleObjectives.textContent = folded ? 'Objectives' : 'Hide list';
+    });
+  }
   el('btn-pause').addEventListener('click', function () {
     if (typeof togglePause === 'function') { togglePause(); }
   });
