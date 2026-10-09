@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sprite Sheet Generator</title>
+<style>
+  body { background:#0b1226; color:#dce8ff; font-family:Consolas,monospace; padding:18px; }
+  h1 { font-size:18px; }
+  #sheet { border:1px solid #2a4275; background:
+    repeating-conic-gradient(#16223f 0% 25%, #101a33 0% 50%) 50%/24px 24px; }
+  #log { white-space:pre-wrap; font-size:12px; margin-top:10px; color:#7fd4f5; }
+</style>
+</head>
+<body>
+<h1>Junior Astronaut Mission Trainer - Sprite Sheet Generator</h1>
+<p>Open this file in a browser. It draws every game sprite and packs them into
+one PNG image. <code>window.buildSheet()</code> returns the PNG as a data URL,
+which is how the build script saves <code>assets/sprites.png</code>.</p>
+<canvas id="sheet" width="768" height="768"></canvas>
+<div id="log"></div>
+
+<script>
+/* ============================================================
+   SPRITE GENERATOR
+   ------------------------------------------------------------
+   Every sprite in the game is drawn here with plain Canvas 2D
+   drawing commands. Nothing is downloaded, so the art can never
+   fail to load and you can edit it like normal code.
+
+   The sheet is a grid of 96x96 cells, 8 cells per row.
+   Each frame knows its own name, which is stored in SPRITE_MAP
+   at the bottom so the game can find it again.
+   ============================================================ */
+
+var CELL = 96;
+var COLS = 8;
+
+var sheet = document.getElementById('sheet');
+var sctx = sheet.getContext('2d');
+
+/* ---------- small drawing helpers ---------- */
+
+/* A rounded capsule from (x,y) going down, rotated by angle.
+   Used for arms and legs. */
+function limb(ctx, x, y, angle, len, w, top, bottom, outline) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+
+  var grad = ctx.createLinearGradient(0, 0, w, 0);
+  grad.addColorStop(0, top);
+  grad.addColorStop(1, bottom);
+
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(w, 0);
+  ctx.lineTo(w, len - w / 2);
+  ctx.arc(w / 2, len - w / 2, w / 2, 0, Math.PI);
+  ctx.lineTo(0, 0);
+  ctx.closePath();
+
+  ctx.fillStyle = grad;
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 2;
+  ctx.fill();
+  ctx.stroke();
+
+  /* boot / glove band at the end */
+  ctx.beginPath();
+  ctx.arc(w / 2, len - w / 2, w / 2 + 0.5, Math.PI * 0.15, Math.PI * 0.85);
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function shape(ctx, x, y, w, h, r, top, bottom, outline, lw) {
+  roundRect(ctx, x, y, w, h, r);
+  var grad = ctx.createLinearGradient(x, y, x, y + h);
+  grad.addColorStop(0, top);
+  grad.addColorStop(1, bottom);
+  ctx.fillStyle = grad;
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = lw || 2;
+  ctx.fill();
+  ctx.stroke();
+}
+
+function circle(ctx, x, y, r, top, bottom, outline, lw) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  var grad = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.1, x, y, r);
+  grad.addColorStop(0, top);
+  grad.addColorStop(1, bottom);
+  ctx.fillStyle = grad;
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = lw || 2;
+  ctx.fill();
+  ctx.stroke();
+}
+
+function poly(ctx, points, fill, outline, lw) {
+  ctx.beginPath();
+  ctx.moveTo(points[0][0], points[0][1]);
+  for (var i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = lw || 2;
+  ctx.fill();
+  ctx.stroke();
+}
+
+function line(ctx, x1, y1, x2, y2, colour, width) {
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = width || 2;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+}
+
+/* A soft glowing dot, used for lights and indicators. */
+function glow(ctx, x, y, r, colour) {
+  var g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, colour);
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = g;
+  ctx.fill();
+}
+
+var SUIT_HI = '#ffffff';
+var SUIT_LO = '#c3ccdb';
+var SUIT_LINE = '#28304a';
+var PACK_HI = '#aab6c8';
+var PACK_LO = '#6d7889';
+
+/* ============================================================
+   THE ASTRONAUT
+   Drawn with its FEET at (cx, feetY). Everything else is
+   relative to that, so the walk cycle maths stays readable.
+   ============================================================ */
+
+function drawAstronaut(ctx, cx, feetY, pose) {
+  var legL = pose.legL || 0;
+  var legR = pose.legR || 0;
+  var armL = pose.armL || 0;
+  var armR = pose.armR || 0;
+  var lean = pose.lean || 0;
+  var tuck = pose.tuck || 0;      /* 0 = standing, 1 = fully tucked in a jump */
+  var wave = pose.wave || false;
+
+  /* soft contact shadow so the astronaut never looks like it is
+     floating even when standing still */
+  ctx.save();
+  ctx.globalAlpha = 0.22;
+  ctx.beginPath();
+  ctx.ellipse(cx, feetY + 2, 20, 5, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#1a2138';
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(cx, feetY);
+  ctx.rotate(lean);
+  ctx.scale(pose.faceLeft ? -1 : 1, 1);
+
+  var LEG_LEN = 28;
+  var ARM_LEN = 24;
+  var hipY = -LEG_LEN;
+  var shoulderY = -52;
+  var bodyW = 25;
+
+  /* --- back leg (darker, behind the body) --- */
+  limb(ctx, -11, hipY, legR, LEG_LEN, 9, PACK_HI, PACK_LO, SUIT_LINE);
+
+  /* --- back arm --- */
+  limb(ctx, -9, shoulderY + 2, armR + 0.3, ARM_LEN, 8, PACK_HI, PACK_LO, SUIT_LINE);
+
+  /* --- life support backpack --- */
+  shape(ctx, -bodyW / 2 - 10, shoulderY - 5, 15, 32, 5, PACK_HI, PACK_LO, SUIT_LINE);
+
+  /* --- front leg --- */
+  limb(ctx, 4, hipY, legL, LEG_LEN, 9, SUIT_HI, SUIT_LO, SUIT_LINE);
+  if (tuck > 0.4) {
+    limb(ctx, 5, hipY + 13, legL - 0.95, 17, 9, SUIT_HI, SUIT_LO, SUIT_LINE);
+  }
+
+  /* --- torso --- */
+  shape(ctx, -bodyW / 2, shoulderY, bodyW, shoulderY * -1 + hipY, 9, SUIT_HI, SUIT_LO, SUIT_LINE);
+
+  /* chest control pack */
+  roundRect(ctx, -7, shoulderY + 6, 14, 10, 3);
+  ctx.fillStyle = '#7f8ba0';
+  ctx.fill();
+  ctx.strokeStyle = SUIT_LINE;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.fillStyle = '#4fd1e0';
+  ctx.fillRect(-5, shoulderY + 8, 2.4, 2.4);
+  ctx.fillStyle = '#fbbf24';
+  ctx.fillRect(0, shoulderY + 8, 2.4, 2.4);
+  ctx.fillStyle = '#fb7185';
+  ctx.fillRect(4, shoulderY + 8, 2.4, 2.4);
+
+  /* red mission patch */
+  ctx.fillStyle = '#e05a6d';
+  roundRect(ctx, -bodyW / 2 + 2, shoulderY + 20, 5, 5, 1.5);
+  ctx.fill();
+
+  /* --- front arm --- */
+  var ax = 7;
+  if (wave) {
+    limb(ctx, ax, shoulderY + 2, -2.2, ARM_LEN, 8, SUIT_HI, SUIT_LO, SUIT_LINE);
+  } else {
+    limb(ctx, ax, shoulderY + 2, armL, ARM_LEN, 8, SUIT_HI, SUIT_LO, SUIT_LINE);
+  }
+
+  /* --- helmet --- */
+  var hy = shoulderY - 13;
+  circle(ctx, 1, hy, 14, '#ffffff', '#b9c3d4', SUIT_LINE, 2.2);
+
+  /* visor */
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(3.5, hy, 10, 0, Math.PI * 2);
+  ctx.clip();
+  var vg = ctx.createLinearGradient(-6, hy - 10, 11, hy + 9);
+  vg.addColorStop(0, '#7fe6ff');
+  vg.addColorStop(0.55, '#2a7fb8');
+  vg.addColorStop(1, '#123f6b');
+  ctx.fillStyle = vg;
+  ctx.fillRect(-10, hy - 13, 25, 26);
+  /* shine streak */
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.beginPath();
+  ctx.ellipse(-1, hy - 5, 3.6, 5.8, -0.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.beginPath();
+  ctx.arc(3.5, hy, 10, 0, Math.PI * 2);
+  ctx.strokeStyle = SUIT_LINE;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  /* helmet lamp */
+  ctx.fillStyle = '#ffe9a8';
+  roundRect(ctx, 10, hy - 11, 5.5, 5.5, 2);
+  ctx.fill();
+  ctx.strokeStyle = SUIT_LINE;
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/* ---------- walk cycle poses ---------- */
+
+function walkPose(phase) {
+  var s = Math.sin(phase);
+  return {
+    legL: s * 0.62,
+    legR: -s * 0.62,
+    armL: -s * 0.48,
+    armR: s * 0.48,
+    bob: Math.abs(s) * 2.2,
+    lean: 0.03
+  };
+}
+
+/* ============================================================
+   THE STATIONS
+   Each one is drawn standing on the ground line, with its
+   "footprint" along the bottom of the cell.
+   ============================================================ */
+
+var METAL_HI = '#e6ecf6';
+var METAL_LO = '#9aa6bb';
+var METAL_LINE = '#232b42';
+var DARK_LINE = '#161c2e';
+
+function drawHabitat(ctx, cx, groundY) {
+  ctx.save();
+  ctx.translate(cx, groundY);
+
+  /* support legs */
+  line(ctx, -34, 0, -28, -12, METAL_LINE, 5);
+  line(ctx, 34, 0, 28, -12, METAL_LINE, 5);
+
+  /* dome body */
+  ctx.beginPath();
+  ctx.moveTo(-46, -12);
+  ctx.lineTo(-46, -34);
+  ctx.arc(0, -34, 46, Math.PI, 0);
+  ctx.lineTo(46, -12);
+  ctx.closePath();
+  var g = ctx.createLinearGradient(-40, -70, 40, -10);
+  g.addColorStop(0, '#ffffff');
+  g.addColorStop(0.6, '#d3dbe8');
+  g.addColorStop(1, '#9fadc2');
+  ctx.fillStyle = g;
+  ctx.strokeStyle = METAL_LINE;
+  ctx.lineWidth = 2.5;
+  ctx.fill();
+  ctx.stroke();
+
+  /* panel seams */
+  for (var i = -30; i <= 30; i += 20) {
+    line(ctx, i, -36, i * 1.28, -13, 'rgba(0,0,0,0.10)', 1.5);
+  }
+
+  /* airlock door */
+  shape(ctx, -13, -40, 26, 28, 12, '#5a6a86', '#39445c', METAL_LINE, 2);
+  glow(ctx, 0, -26, 12, 'rgba(79,209,224,0.28)');
+  circle(ctx, 8, -26, 2.4, '#4fd1e0', '#2b9fb0', 'rgba(0,0,0,0.4)', 1);
+
+  /* windows */
+  circle(ctx, -28, -40, 7, '#bfefff', '#2f7fd6', METAL_LINE, 2);
+  circle(ctx, 28, -40, 7, '#bfefff', '#2f7fd6', METAL_LINE, 2);
+
+  /* antenna */
+  line(ctx, 0, -78, 0, -94, METAL_LINE, 3);
+  circle(ctx, 0, -97, 4, '#ff8a8a', '#c94a4a', METAL_LINE, 1.5);
+
+  ctx.restore();
+}
+
+function drawSolar(ctx, cx, groundY, damaged) {
+  ctx.save();
+  ctx.translate(cx, groundY);
+
+  /* mast */
+  line(ctx, 0, 0, 0, -46, METAL_LINE, 6);
+  line(ctx, -12, 0, 0, -16, METAL_LINE, 4);
+  line(ctx, 12, 0, 0, -16, METAL_LINE, 4);
+
+  for (var i = -1; i <= 1; i++) {
+    var px = i * 30;
+    var tilt = damaged && i === 1 ? 0.5 : 0;
+    ctx.save();
+    ctx.translate(px, -48);
+    ctx.rotate(tilt);
+    shape(ctx, -13, -20, 26, 40, 3, '#2f6fd0', '#12356e', METAL_LINE, 2);
+    /* cell grid */
+    ctx.strokeStyle = 'rgba(200,235,255,0.35)';
+    ctx.lineWidth = 1;
+    for (var gx = -13; gx < 13; gx += 6.5) line(ctx, gx, -20, gx, 20, 'rgba(200,235,255,0.30)', 1);
+    for (var gy = -20; gy < 20; gy += 7) line(ctx, -13, gy, 13, gy, 'rgba(200,235,255,0.30)', 1);
+    /* sheen */
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.beginPath();
+    ctx.moveTo(-13, 20); ctx.lineTo(13, -20); ctx.lineTo(13, -6); ctx.lineTo(-13, 20);
+    ctx.closePath(); ctx.fill();
+
+    if (damaged && i === 1) {
+      /* a jagged crack and a small scorch, not a red blob */
+      ctx.beginPath();
+      ctx.moveTo(-8, -18); ctx.lineTo(-1, -7); ctx.lineTo(-6, 1); ctx.lineTo(3, 9); ctx.lineTo(-2, 18);
+      ctx.strokeStyle = '#0b1120'; ctx.lineWidth = 2.6; ctx.lineJoin = 'round'; ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1; ctx.stroke();
+      var sc = ctx.createRadialGradient(-3, 4, 1, -3, 4, 12);
+      sc.addColorStop(0, 'rgba(70,60,70,0.55)');
+      sc.addColorStop(1, 'rgba(70,60,70,0)');
+      ctx.fillStyle = sc;
+      ctx.beginPath(); ctx.arc(-3, 4, 12, 0, Math.PI * 2); ctx.fill();
+      /* one dead cell row */
+      ctx.fillStyle = 'rgba(10,16,32,0.55)';
+      ctx.fillRect(-13, -6, 26, 7);
+    }
+    ctx.restore();
+  }
+
+  /* status light */
+  glow(ctx, 0, -18, 14, damaged ? 'rgba(251,113,133,0.45)' : 'rgba(74,222,128,0.40)');
+  circle(ctx, 0, -18, 4.5, damaged ? '#ff9aa8' : '#8dffc0', damaged ? '#b93b52' : '#2f9e5f', METAL_LINE, 1.5);
+
+  ctx.restore();
+}
+
+function drawOxygen(ctx, cx, groundY) {
+  ctx.save();
+  ctx.translate(cx, groundY);
+
+  /* two tanks on a frame */
+  var tank = function (dx, top, bottom) {
+    ctx.save();
+    ctx.translate(dx, 0);
+    shape(ctx, -13, -60, 26, 60, 13, top, bottom, METAL_LINE, 2.4);
+    /* pressure band */
+    ctx.fillStyle = 'rgba(0,0,0,0.14)';
+    ctx.fillRect(-13, -34, 26, 6);
+    ctx.fillStyle = '#7fe6ff';
+    roundRect(ctx, -8, -54, 16, 12, 4);
+    ctx.fill();
+    ctx.restore();
+  };
+  tank(-19, '#dfe9f5', '#93a3bb');
+  tank(19, '#e8f4ff', '#9fb8d0');
+
+  /* frame */
+  line(ctx, -36, -4, 36, -4, METAL_LINE, 5);
+  line(ctx, -34, -60, 34, -60, METAL_LINE, 4);
+
+  /* gauge */
+  circle(ctx, 0, -26, 11, '#ffffff', '#c9d4e4', METAL_LINE, 2);
+  ctx.beginPath();
+  ctx.arc(0, -26, 7, Math.PI, 0);
+  ctx.strokeStyle = '#4fd1e0';
+  ctx.lineWidth = 3.4;
+  ctx.stroke();
+  line(ctx, 0, -26, 5, -31, '#e05a6d', 2);
+  circle(ctx, 0, -26, 2, '#2b9fb0', '#1a6a78', METAL_LINE, 1);
+
+  ctx.restore();
+}
+
+function drawWater(ctx, cx, groundY) {
+  ctx.save();
+  ctx.translate(cx, groundY);
+
+  /* main cylinder */
+  shape(ctx, -30, -66, 60, 66, 8, '#cfe6f5', '#7e9ab5', METAL_LINE, 2.4);
+
+  /* blue water inside */
+  ctx.save();
+  roundRect(ctx, -30, -66, 60, 66, 8);
+  ctx.clip();
+  var wg = ctx.createLinearGradient(0, -34, 0, 0);
+  wg.addColorStop(0, 'rgba(90,170,255,0.95)');
+  wg.addColorStop(1, 'rgba(30,90,180,0.95)');
+  ctx.fillStyle = wg;
+  ctx.fillRect(-30, -32, 60, 32);
+  /* wavy surface */
+  ctx.beginPath();
+  ctx.moveTo(-30, -32);
+  for (var x = -30; x <= 30; x += 6) {
+    ctx.quadraticCurveTo(x + 3, -36, x + 6, -32);
+  }
+  ctx.lineTo(30, -28); ctx.lineTo(-30, -28); ctx.closePath();
+  ctx.fillStyle = 'rgba(150,215,255,0.9)';
+  ctx.fill();
+  /* bubbles */
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.beginPath(); ctx.arc(-12, -18, 2.6, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(8, -10, 1.8, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  roundRect(ctx, -30, -66, 60, 66, 8);
+  ctx.strokeStyle = METAL_LINE; ctx.lineWidth = 2.4; ctx.stroke();
+
+  /* filter drum on top */
+  shape(ctx, -18, -84, 36, 20, 6, METAL_HI, METAL_LO, METAL_LINE, 2);
+  line(ctx, -8, -84, -8, -64, METAL_LINE, 2);
+  line(ctx, 8, -84, 8, -64, METAL_LINE, 2);
+
+  /* pipe */
+  ctx.beginPath();
+  ctx.moveTo(30, -46);
+  ctx.quadraticCurveTo(44, -46, 44, -22);
+  ctx.strokeStyle = '#8fa3bd'; ctx.lineWidth = 6; ctx.stroke();
+  ctx.strokeStyle = METAL_LINE; ctx.lineWidth = 1.6; ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawFood(ctx, cx, groundY) {
+  ctx.save();
+  ctx.translate(cx, groundY);
+
+  /* frame */
+  line(ctx, -38, 0, -38, -70, METAL_LINE, 5);
+  line(ctx, 38, 0, 38, -70, METAL_LINE, 5);
+  line(ctx, -40, -70, 40, -70, METAL_LINE, 5);
+
+  /* two shelves of trays */
+  for (var shelf = 0; shelf < 2; shelf++) {
+    var sy = -34 - shelf * 30;
+    shape(ctx, -34, sy, 68, 9, 3, METAL_HI, METAL_LO, METAL_LINE, 2);
+
+    /* grow lights above */
+    line(ctx, -26, sy - 12, 26, sy - 12, '#ffd166', 3);
+    glow(ctx, 0, sy - 12, 22, 'rgba(255,209,102,0.30)');
+
+    /* plants */
+    for (var i = -3; i <= 3; i++) {
+      var px = i * 9;
+      line(ctx, px, sy, px, sy - 10, '#3f8f46', 2.4);
+      ctx.fillStyle = '#5fbf5a';
+      ctx.beginPath();
+      ctx.ellipse(px - 3.4, sy - 7, 4.6, 3, -0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(px + 3.4, sy - 9, 4.6, 3, 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  /* water tray under the bottom shelf */
+  shape(ctx, -34, -12, 68, 12, 4, '#bfe0f5', '#6fa8d8', METAL_LINE, 2);
+
+  ctx.restore();
+}
+
+function drawConsole(ctx, cx, groundY) {
+  ctx.save();
+  ctx.translate(cx, groundY);
+
+  /* stand */
+  line(ctx, 0, 0, 0, -30, METAL_LINE, 7);
+  shape(ctx, -20, 0, 40, 8, 4, METAL_HI, METAL_LO, METAL_LINE, 2);
+
+  /* screen body */
+  shape(ctx, -34, -74, 68, 46, 8, '#dbe4f2', '#93a1b8', METAL_LINE, 2.4);
+
+  /* screen */
+  roundRect(ctx, -28, -68, 56, 34, 5);
+  var sg = ctx.createLinearGradient(-28, -68, 28, -34);
+  sg.addColorStop(0, '#0d2a4d');
+  sg.addColorStop(1, '#071a33');
+  ctx.fillStyle = sg; ctx.fill();
+  ctx.strokeStyle = METAL_LINE; ctx.lineWidth = 2; ctx.stroke();
+
+  /* little readouts on the screen */
+  ctx.fillStyle = '#4fd1e0';
+  ctx.fillRect(-22, -62, 34, 3);
+  ctx.fillStyle = '#6aa6ff';
+  ctx.fillRect(-22, -56, 20, 3);
+  ctx.fillStyle = '#4ade80';
+  ctx.fillRect(-22, -50, 28, 3);
+  glow(ctx, 0, -51, 26, 'rgba(79,209,224,0.22)');
+
+  /* side buttons */
+  ctx.fillStyle = '#ff6b6b';
+  ctx.beginPath(); ctx.arc(-26, -22, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#4ade80';
+  ctx.beginPath(); ctx.arc(26, -22, 3, 0, Math.PI * 2); ctx.fill();
+
+  ctx.restore();
+}
+
+function drawDepot(ctx, cx, groundY) {
+  ctx.save();
+  ctx.translate(cx, groundY);
+
+  /* crates */
+  shape(ctx, -40, -30, 34, 30, 4, '#e3b778', '#b8874c', METAL_LINE, 2.2);
+  shape(ctx, -4, -30, 34, 30, 4, '#d9a86a', '#a97744', METAL_LINE, 2.2);
+  shape(ctx, -22, -56, 34, 26, 4, '#eec48a', '#c2914f', METAL_LINE, 2.2);
+  /* crate straps */
+  line(ctx, -32, -30, -32, 0, 'rgba(0,0,0,0.18)', 3);
+  line(ctx, -14, -30, -14, 0, 'rgba(0,0,0,0.18)', 3);
+
+  /* rover */
+  shape(ctx, 6, -22, 46, 16, 5, '#dfe7f2', '#9fb0c6', METAL_LINE, 2.2);
+  shape(ctx, 12, -34, 20, 13, 4, '#7fd4f5', '#2f7fd6', METAL_LINE, 2);
+  circle(ctx, 16, -6, 7, '#5a6478', '#2c3345', METAL_LINE, 2);
+  circle(ctx, 42, -6, 7, '#5a6478', '#2c3345', METAL_LINE, 2);
+  glow(ctx, 50, -16, 12, 'rgba(255,233,168,0.35)');
+
+  ctx.restore();
+}
+
+/* ============================================================
+   BUILD THE SHEET
+   ============================================================ */
+
+/* Every frame in the sheet, in order. The game reads these
+   same names from SPRITE_MAP. */
+var SPRITE_MAP = {};
+var frameList = [];
+
+/* Every frame name, in the exact order they get drawn.
+   The canvas has to be sized before drawing starts, and resizing a
+   canvas wipes it, so this list is what tells us how big to make it. */
+var SPRITE_ORDER = [
+  'idle_0', 'idle_1', 'idle_2', 'idle_3',
+  'walk_0', 'walk_1', 'walk_2', 'walk_3', 'walk_4', 'walk_5', 'walk_6', 'walk_7',
+  'jump_rise', 'jump_fall', 'land_0', 'land_1',
+  'work_0', 'work_1', 'work_2', 'work_3',
+  'wave_0', 'wave_1',
+  'station_habitat', 'station_oxygen', 'station_water', 'station_food',
+  'station_solar_ok', 'station_solar_bad', 'station_console', 'station_depot'
+];
+
+function addFrame(name, drawFn) {
+  var index = frameList.length;
+  var col = index % COLS;
+  var row = Math.floor(index / COLS);
+
+  frameList.push({ name: name, col: col, row: row });
+  SPRITE_MAP[name] = { x: col * CELL, y: row * CELL, w: CELL, h: CELL, index: index };
+
+  sctx.save();
+  sctx.translate(col * CELL, row * CELL);
+  sctx.beginPath();
+  sctx.rect(0, 0, CELL, CELL);
+  sctx.clip();
+  drawFn(sctx, CELL / 2, CELL - 10);
+  sctx.restore();
+}
+
+function buildSheet() {
+  /* Work out how many rows we need FIRST. Setting canvas.width or
+     canvas.height always wipes the canvas, so this has to happen
+     before any drawing. */
+  var rows = Math.ceil((SPRITE_ORDER.length) / COLS);
+  sheet.width = COLS * CELL;
+  sheet.height = rows * CELL;
+
+  sctx.clearRect(0, 0, sheet.width, sheet.height);
+
+  /* --- astronaut idle: 4 frames of gentle breathing --- */
+  for (var i = 0; i < 4; i++) {
+    (function (n) {
+      addFrame('idle_' + n, function (ctx, cx, gy) {
+        var b = Math.sin(n / 4 * Math.PI * 2) * 1.1;
+        drawAstronaut(ctx, cx, gy + b, { legL: 0.05, legR: -0.05, armL: 0.1, armR: -0.1 });
+      });
+    })(i);
+  }
+
+  /* --- walk cycle: 8 frames --- */
+  for (var w = 0; w < 8; w++) {
+    (function (n) {
+      addFrame('walk_' + n, function (ctx, cx, gy) {
+        var pose = walkPose(n / 8 * Math.PI * 2);
+        drawAstronaut(ctx, cx, gy - pose.bob, pose);
+      });
+    })(w);
+  }
+
+  /* --- jump: rise, fall, and a landing squash --- */
+  addFrame('jump_rise', function (ctx, cx, gy) {
+    drawAstronaut(ctx, cx, gy, { legL: -0.75, legR: 0.35, armL: -1.5, armR: -1.9, tuck: 1, lean: -0.06 });
+  });
+  addFrame('jump_fall', function (ctx, cx, gy) {
+    drawAstronaut(ctx, cx, gy, { legL: 0.45, legR: -0.55, armL: -1.1, armR: -1.4, tuck: 0.6, lean: 0.04 });
+  });
+  addFrame('land_0', function (ctx, cx, gy) {
+    drawAstronaut(ctx, cx, gy + 2, { legL: 0.5, legR: -0.5, armL: 0.7, armR: -0.7, lean: 0.12 });
+  });
+  addFrame('land_1', function (ctx, cx, gy) {
+    drawAstronaut(ctx, cx, gy, { legL: 0.2, legR: -0.2, armL: 0.3, armR: -0.3, lean: 0.05 });
+  });
+
+  /* --- working / repairing: 4 frames --- */
+  for (var k = 0; k < 4; k++) {
+    (function (n) {
+      addFrame('work_' + n, function (ctx, cx, gy) {
+        var s = Math.sin(n / 4 * Math.PI * 2);
+        drawAstronaut(ctx, cx, gy, { legL: 0.18, legR: -0.18, armL: -1.25 + s * 0.22, armR: -1.05 - s * 0.22, lean: 0.06 });
+      });
+    })(k);
+  }
+
+  /* --- waving, used by the results screen --- */
+  addFrame('wave_0', function (ctx, cx, gy) {
+    drawAstronaut(ctx, cx, gy, { legL: 0.06, legR: -0.06, armL: 0.1, armR: -0.1, wave: true });
+  });
+  addFrame('wave_1', function (ctx, cx, gy) {
+    drawAstronaut(ctx, cx, gy, { legL: 0.06, legR: -0.06, armL: 0.1, armR: -0.1, wave: true });
+  });
+
+  /* --- the stations --- */
+  addFrame('station_habitat', drawHabitat);
+  addFrame('station_oxygen', drawOxygen);
+  addFrame('station_water', drawWater);
+  addFrame('station_food', drawFood);
+  addFrame('station_solar_ok', function (ctx, cx, gy) { drawSolar(ctx, cx, gy, false); });
+  addFrame('station_solar_bad', function (ctx, cx, gy) { drawSolar(ctx, cx, gy, true); });
+  addFrame('station_console', drawConsole);
+  addFrame('station_depot', drawDepot);
+
+  /* the canvas was sized at the top of this function, before drawing */
+
+  var log = document.getElementById('log');
+  log.textContent = 'frames: ' + frameList.length + '\n' +
+                    'sheet: ' + sheet.width + 'x' + sheet.height + '\n' +
+                    'names: ' + frameList.map(function (f) { return f.name; }).join(', ');
+
+  return { map: SPRITE_MAP, count: frameList.length, width: sheet.width, height: sheet.height };
+}
+
+var result = buildSheet();
+
+/* The build script calls this and saves the PNG. */
+window.buildSheet = function () {
+  return {
+    dataUrl: sheet.toDataURL('image/png'),
+    map: SPRITE_MAP,
+    count: result.count,
+    width: result.width,
+    height: result.height,
+    cell: CELL,
+    cols: COLS
+  };
+};
+
+window.addEventListener('load', function () {
+  document.getElementById('log').textContent += '\n\nReady. Press F12 console > buildSheet()';
+});
+</script>
+</body>
+</html>
