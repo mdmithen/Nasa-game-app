@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Junior Astronaut Mission Trainer</title>
+  <meta name="description" content="An educational browser game where you run a Moon Base and keep your astronauts alive.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- The animated space background: stars, drifting colour clouds and
+     the slowly turning Moon. Drawn by fx.js on one canvas, behind
+     everything. If the canvas cannot start, the page still works. -->
+<canvas id="space-bg" aria-hidden="true"></canvas>
+<div class="vignette" aria-hidden="true"></div>
+
+<!-- ============================================================
+     SCREEN 1: WELCOME
+     ============================================================ -->
+<section id="screen-welcome" class="screen screen-center">
+  <div class="moon-scene" aria-hidden="true">
+    <div class="stars"></div>
+    <div class="earth"></div>
+    <div class="sun-glow"></div>
+    <div class="orbital-ring"></div>
+    <div class="ground"></div>
+    <div class="crater crater-a"></div>
+    <div class="crater crater-b"></div>
+    <div class="crater crater-c"></div>
+    <div class="base">
+      <div class="solar-array"></div>
+      <div class="dome">
+        <span class="dome-door"></span>
+        <span class="dome-window w1"></span>
+        <span class="dome-window w2"></span>
+      </div>
+      <div class="antenna"></div>
+    </div>
+    <div class="astronaut">
+      <span class="astro-pack"></span>
+      <span class="astro-body"></span>
+      <span class="astro-arm arm-left"></span>
+      <span class="astro-arm arm-right"></span>
+      <span class="astro-leg leg-left"></span>
+      <span class="astro-leg leg-right"></span>
+      <span class="astro-helmet"><i class="astro-visor"></i></span>
+    </div>
+  </div>
+
+  <div class="welcome-card">
+    <p class="eyebrow">NASA Space Apps Challenge 2026 Project</p>
+    <h1>Junior Astronaut<br>Mission Trainer</h1>
+    <p class="subtitle">Manage Your Moon Base. Protect Your Crew.</p>
+
+    <p class="intro">
+      You are the Mission Commander of <strong>Base Selene</strong>, a small lunar outpost.
+      Three astronauts depend on you for oxygen, water, food and electricity.
+      Every day brings a new problem: a broken solar panel, a leaking tank, a dust storm.
+      Your choices decide whether everyone comes home.
+    </p>
+
+    <div class="welcome-actions">
+      <button id="btn-start" class="btn btn-primary" type="button">Start Mission</button>
+      <button id="btn-howto" class="btn btn-ghost" type="button">How to Play</button>
+      <button id="btn-learn" class="btn btn-ghost" type="button">Learn About Space</button>
+    </div>
+
+    <p class="tiny-note">
+      No install, no internet needed to play. Open <code>index.html</code> in any browser.
+    </p>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SCREEN 2: HOW TO PLAY
+     ============================================================ -->
+<section id="screen-howto" class="screen screen-center" hidden>
+  <div class="page-card">
+    <h1>How to Play</h1>
+
+<h2>The goal</h2>
+    <p>
+      You are the Commander walking around Base Selene. Keep all three astronauts
+      healthy, complete all <strong>6 mission objectives</strong>, and do it inside
+      <strong>16 mission days</strong>. If a vital resource or crew health reaches
+      zero, the mission fails.
+    </p>
+
+    <h2>Moving around</h2>
+    <table class="controls-table">
+      <tr><td><kbd>A</kbd> <kbd>D</kbd></td><td>or <kbd>&larr;</kbd> <kbd>&rarr;</kbd></td><td>Walk left and right</td></tr>
+      <tr><td><kbd>W</kbd> / <kbd>Space</kbd></td><td>or <kbd>&uarr;</kbd></td><td>Jump &mdash; reach floating supply canisters</td></tr>
+      <tr><td><kbd>E</kbd></td><td></td><td>Interact with the station you are standing at</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td></td><td>Pause or resume</td></tr>
+    </table>
+    <p class="tiny-note" style="text-align:left">
+      On a phone use the on-screen buttons. On a keyboard you can also press
+      <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> to pick a decision option.
+    </p>
+
+    <h2>Every action costs a day</h2>
+    <ol class="steps">
+      <li>Walk to a station marked with a glowing <span class="marker-demo">!</span></li>
+      <li>Press <kbd>E</kbd>. A panel opens showing the situation.</li>
+      <li>Pick an option. Each option really changes your resources.</li>
+      <li>Read what your choice did, and <em>why</em>.</li>
+      <li>Press <em>Finish and End Day</em>. Only then does the day tick over.</li>
+    </ol>
+    <p>
+      Time is a resource here. Walking around is free, but every station you
+      actually use costs one of your sixteen days.
+    </p>
+
+    <h2>Stations</h2>
+    <ul class="key-list">
+      <li><strong>Habitat</strong> &mdash; crew health and rest.</li>
+      <li><strong>Oxygen System</strong> &mdash; air supply and the CO2 scrubber.</li>
+      <li><strong>Water Recycler</strong> &mdash; the loop that reuses water.</li>
+      <li><strong>Food Station</strong> &mdash; hydroponics and food stores.</li>
+      <li><strong>Solar Panels</strong> &mdash; electricity generation.</li>
+      <li><strong>Supply Depot</strong> &mdash; spare parts, rations and the rover.</li>
+      <li><strong>Mission Console</strong> &mdash; objectives and mission status.</li>
+    </ul>
+
+    <h2>The resources</h2>
+    <ul class="key-list">
+      <li><span class="chip chip-o2">Oxygen</span> for breathing. It is never recycled in this simplified game.</li>
+      <li><span class="chip chip-water">Water</span> for drinking, washing and growing food.</li>
+      <li><span class="chip chip-food">Food</span> the crew eats every day.</li>
+      <li><span class="chip chip-power">Electricity</span> made by solar panels and spent by everything else.</li>
+      <li><span class="chip chip-health">Crew Health</span> drops when a vital resource runs low.</li>
+    </ul>
+
+    <h2>Important</h2>
+    <p>
+      The numbers in this game are <strong>simplified teaching values</strong>, not real NASA
+      operational measurements. Real life support engineering is far more complex.
+    </p>
+
+    <div class="welcome-actions">
+      <button class="btn btn-primary js-go-start" type="button">Start Mission</button>
+      <button class="btn btn-ghost js-go-welcome" type="button">Back</button>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SCREEN 3: LEARN ABOUT SPACE
+     ============================================================ -->
+<section id="screen-learn" class="screen" hidden>
+  <div class="page-card">
+    <h1>Learn About Space</h1>
+    <p class="page-lead">
+      Real science and game rules are two different things. Every card below is labelled.
+      <span class="tag tag-fact">REAL SCIENCE</span> cards come from published NASA and
+      scientific sources. <span class="tag tag-game">GAME RULE</span> cards are invented
+      for teaching and are not real measurements.
+    </p>
+
+    <div class="learn-grid">
+
+      <article class="learn-card">
+        <h3>The Moon's environment</h3>
+        <p><span class="tag tag-fact">REAL SCIENCE</span></p>
+        <p>
+          The Moon has almost no atmosphere &mdash; only a very thin exosphere, far too thin to breathe.
+          It has no global magnetic field like Earth's. Because it does not keep an atmosphere,
+          the temperature on the surface swings enormously between day and night, and its surface
+          is constantly bombarded by radiation from the Sun and from space.
+        </p>
+        <p class="source">Source: NASA Science &mdash; Moon Facts; NASA lunar science mission pages.</p>
+      </article>
+
+      <article class="learn-card">
+        <h3>Why astronauts need oxygen</h3>
+        <p><span class="tag tag-fact">REAL SCIENCE</span></p>
+        <p>
+          Humans need oxygen to turn food into energy and cannot survive without it for more than
+          a few minutes. On the Moon there is nothing to breathe, so a habitat must bring or make
+          its own air. Inside a pressurised habitat astronauts wear normal clothing and breathe a
+          mixture similar to Earth's air; only outside, in a spacesuit, do they carry oxygen tanks.
+        </p>
+        <p class="source">Source: NASA &mdash; spacesuit and life-support documentation.</p>
+      </article>
+
+      <article class="learn-card">
+        <h3>Water is precious and reusable</h3>
+        <p><span class="tag tag-fact">REAL SCIENCE</span></p>
+        <p>
+          A lunar base cannot ship every drop of water it needs, so real designs recover it.
+          Water vapour in the air is condensed, urine and sweat are filtered and cleaned, and grey
+          water is reused for washing and for plants. In 2008 NASA's LCROSS mission detected water
+          ice at the lunar south pole, and later instruments found ice in permanently shadowed
+          craters &mdash; a possible resource for a future base.
+        </p>
+        <p class="source">Source: NASA LCROSS mission results; NASA lunar exploration research.</p>
+      </article>
+
+      <article class="learn-card">
+        <h3>Solar energy and the long lunar night</h3>
+        <p><span class="tag tag-fact">REAL SCIENCE</span></p>
+        <p>
+          Apollo spacecraft and instruments on the Moon have used solar panels successfully.
+          The catch is the lunar day and night cycle: one full cycle of sunlight and darkness
+          takes about 29.5 Earth days, so any location spends roughly half of that time in
+          darkness. That is exactly why a real lunar base needs batteries, and why a damaged
+          solar panel is such a serious problem.
+        </p>
+        <p class="source">Source: NASA lunar science and mission pages.</p>
+      </article>
+
+      <article class="learn-card">
+        <h3>Growing food off Earth</h3>
+        <p><span class="tag tag-fact">REAL SCIENCE</span></p>
+        <p>
+          NASA has already grown plants inside space stations. The Advanced Plant Habitat,
+          nicknamed &quot;Veggie&quot;, has been part of the International Space Station since 2016
+          and has grown edible crops such as lettuce under artificial light. Moon or Mars bases
+          would need hydroponics, grow lights and a controlled water system for the same reason.
+        </p>
+        <p class="source">Source: NASA &mdash; Advanced Plant Habitat / Veggie, International Space Station.</p>
+      </article>
+
+      <article class="learn-card">
+        <h3>What makes lunar living hard</h3>
+        <p><span class="tag tag-fact">REAL SCIENCE</span></p>
+        <p>
+          Lunar dust is sharp, clingy and electrostatically charged, so it gets into seals and
+          scratches equipment. Gravity is about one sixth of Earth's, which changes how you move
+          and how fluids behave. Getting supplies from Earth takes days, and Earth radio is far
+          away &mdash; light takes about 1.3 seconds to travel there, so messages must wait.
+        </p>
+        <p class="source">Source: NASA lunar science and human exploration documentation.</p>
+      </article>
+
+      <article class="learn-card learn-card-game">
+        <h3>About this game's numbers</h3>
+        <p><span class="tag tag-game">GAME RULE</span></p>
+        <p>
+          Every bar in this game &mdash; oxygen, water, food, electricity, health &mdash; is a
+          simplified teaching value chosen so the arithmetic stays easy to follow on paper.
+          They are <strong>not</strong> NASA measurements, not flight-planning figures, and not
+          predictions of what a real mission would look like. A real base has far more systems
+          and far more ways to fail.
+        </p>
+      </article>
+
+    </div>
+
+    <div class="welcome-actions">
+      <button class="btn btn-primary js-go-start" type="button">Start Mission</button>
+      <button class="btn btn-ghost js-go-welcome" type="button">Back</button>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SCREEN 4: THE PLAYABLE 2D MOON BASE
+     ============================================================ -->
+<section id="screen-game" class="screen screen-game" hidden>
+  <div class="stage">
+
+    <!-- the 2D world. world.js draws everything into this -->
+    <canvas id="game-canvas" aria-label="Moon Base game world"></canvas>
+
+    <!-- ---------- heads up display ---------- -->
+    <div class="hud">
+
+      <div class="hud-top">
+        <span class="base-badge">BASE SELENE</span>
+        <span class="topbar-tag" id="status-pill">Mission In Progress</span>
+        <span class="hud-spacer"></span>
+        <span class="hud-chip">Day <strong id="stat-day">1</strong> / <span id="stat-max-days">16</span></span>
+        <span class="hud-chip">Crew <strong id="stat-crew">3</strong></span>
+        <button id="btn-pause" class="btn btn-ghost btn-small" type="button">Pause</button>
+        <button id="btn-restart-quick" class="btn btn-ghost btn-small" type="button">Restart</button>
+      </div>
+
+      <div class="hud-left">
+        <div class="hud-card">
+          <h2 class="panel-title">Base Resources</h2>
+          <div id="resource-grid" class="resource-grid"></div>
+          <p class="disclaimer">
+            <strong>Simulated game values.</strong> Simplified teaching numbers for this
+            game. Not NASA operational data.
+          </p>
+        </div>
+      </div>
+
+      <div class="hud-right">
+        <div class="hud-card">
+          <h2 class="panel-title">Mission Progress</h2>
+          <div class="progress-wrap">
+            <div class="progress-head">
+              <span id="progress-text">0 of 6 objectives complete</span>
+              <span id="progress-percent">0%</span>
+            </div>
+            <div class="progress-track">
+              <div id="progress-fill" class="progress-fill" style="width: 0%"></div>
+            </div>
+          </div>
+          <div class="objective-box">
+            <span class="objective-label">Current Objective</span>
+            <p id="current-objective" class="objective-text">&mdash;</p>
+          </div>
+          <ul id="objective-list" class="objective-list"></ul>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ---------- station interaction panel ---------- -->
+    <div id="station-panel" class="station-panel" hidden>
+      <div class="panel-inner">
+        <div class="event-head">
+          <span id="event-kind" class="event-kind">System Check</span>
+          <h2 class="panel-title" id="event-title">Station</h2>
+        </div>
+
+        <p id="event-story" class="event-story" aria-live="polite"></p>
+
+        <div id="event-options" class="event-options"></div>
+
+        <div id="event-result" class="event-result" hidden>
+          <h3 id="result-heading">Consequence</h3>
+          <p id="result-story" class="result-story"></p>
+          <ul id="result-deltas" class="delta-list"></ul>
+          <p id="result-lesson" class="result-lesson"></p>
+        </div>
+
+        <button id="btn-next-day" class="btn btn-primary btn-block" type="button" hidden>
+          Finish and End Day
+        </button>
+
+        <p id="event-hint" class="event-hint" hidden>Choose an option. Every option changes your resources.</p>
+      </div>
+    </div>
+
+    <!-- ---------- pause overlay ---------- -->
+    <div id="pause-overlay" class="pause-overlay" hidden>
+      <div class="pause-card">
+        <h2>Paused</h2>
+        <p>The mission clock is stopped.</p>
+        <button class="btn btn-primary" type="button" onclick="togglePause()">Resume</button>
+        <p class="tiny-note">Press <kbd>Esc</kbd> to resume</p>
+      </div>
+    </div>
+
+    <!-- ---------- on-screen controls for phones ---------- -->
+    <div class="touch-pad">
+      <div class="touch-move">
+        <button class="touch-btn" type="button" data-touch="left" aria-label="Move left">&#9664;</button>
+        <button class="touch-btn" type="button" data-touch="right" aria-label="Move right">&#9654;</button>
+      </div>
+      <div class="touch-actions">
+        <button class="touch-btn touch-interact" type="button" data-touch="interact" aria-label="Interact">E</button>
+        <button class="touch-btn touch-jump" type="button" data-touch="jump" aria-label="Jump">&#9650;</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ---------- NASA panel (kept from the previous version) ---------- -->
+  <section class="panel panel-nasa nasa-below">
+    <h2 class="panel-title">NASA Open Data</h2>
+    <p class="nasa-intro">
+      Real records from the NASA Image and Video Library, loaded live when you have internet.
+      The game does <strong>not</strong> need this to work.
+    </p>
+    <div id="nasa-status" class="nasa-status">Loading NASA Open Data&hellip;</div>
+    <ul id="nasa-list" class="nasa-list"></ul>
+  </section>
+</section>
+
+
+<!-- ============================================================
+     SCREEN 5: RESULTS
+     ============================================================ -->
+<section id="screen-result" class="screen screen-center" hidden>
+  <div class="page-card result-card">
+    <p class="eyebrow" id="result-eyebrow">Mission Complete</p>
+    <h1 id="result-title">Mission Success</h1>
+    <p id="result-subtitle" class="subtitle"></p>
+
+    <div class="score-ring-wrap">
+      <div class="score-ring" id="score-ring">
+        <span class="score-num" id="score-number">0</span>
+        <span class="score-outof">out of 100</span>
+      </div>
+    </div>
+
+    <div class="result-grid">
+      <div class="result-card-mini">
+        <span class="rm-label">Astronaut Survival</span>
+        <span class="rm-value" id="r-survival">&mdash;</span>
+      </div>
+      <div class="result-card-mini">
+        <span class="rm-label">Days Survived</span>
+        <span class="rm-value" id="r-days">&mdash;</span>
+      </div>
+      <div class="result-card-mini">
+        <span class="rm-label">Objectives</span>
+        <span class="rm-value" id="r-objectives">&mdash;</span>
+      </div>
+      <div class="result-card-mini">
+        <span class="rm-label">Good Decisions</span>
+        <span class="rm-value" id="r-decisions">&mdash;</span>
+      </div>
+    </div>
+
+    <h3 class="result-section">Remaining Resources</h3>
+    <div id="result-resources" class="result-resources"></div>
+
+    <h3 class="result-section">Completed Objectives</h3>
+    <ul id="result-objectives" class="objective-list"></ul>
+
+    <h3 class="result-section">Performance Report</h3>
+    <p id="result-report" class="result-report"></p>
+
+    <h3 class="result-section">How to Improve Next Time</h3>
+    <ul id="result-tips" class="tips-list"></ul>
+
+    <div class="welcome-actions">
+      <button id="btn-restart" class="btn btn-primary" type="button">Restart Mission</button>
+      <button id="btn-learn-again" class="btn btn-ghost" type="button">Learn About Space</button>
+      <button id="btn-home" class="btn btn-ghost" type="button">Home</button>
+    </div>
+
+    <p class="tiny-note">
+      Scores and resource values in this game are simplified simulations for learning,
+      not NASA operational data.
+    </p>
+  </div>
+</section>
+
+<script src="sprites.js"></script>
+<script src="script.js"></script>
+<script src="world.js"></script>
+<script src="fx.js"></script>
+</body>
+</html>
