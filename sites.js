@@ -48,6 +48,20 @@
                   pole. The Gazetteer centre is 89.67 S, 129.78 E, and
                   the diameter is 20.92 km.
 
+     Cabeus      was called "Cabeus B Floor" at 85.6 S, 50 W. That is
+                  wrong twice over. The IAU feature called "Cabeus B"
+                  is a different crater 350 km to the north, centred on
+                  82.26 S, 54.58 W, and LCROSS never went there. LCROSS
+                  impacted the floor of CABEUS, and the LCROSS team
+                  published the impact point as 84.6796 S, 48.7093 W
+                  (Marshall et al. 2011). The site is now named "Cabeus
+                  Floor" and sits on that measured point.
+
+                  This is the one entry that is a MISSION site rather
+                  than a Gazetteer feature, so its position comes from
+                  the mission report instead. The crater ring is still
+                  drawn at the real Cabeus centre from lunar-data.js.
+
    The measured sizes, the ice record and the illumination modelling
    now live in lunar-data.js with a citation attached to each one.
    Latitude is negative (southern hemisphere) and longitude is degrees
@@ -56,11 +70,11 @@
 
 var ZONES = [
   {
-    id: 'cabeus-b',
-    name: 'Cabeus B Floor',
-    coords: '85.6°S, 50°W',
-    lat: -85.6,
-    lon: -50,
+    id: 'cabeus',
+    name: 'Cabeus Floor',
+    coords: '84.68°S, 48.71°W',
+    lat: -84.68,
+    lon: -48.71,
 
     /* ---- GAME ESTIMATE ---- */
     difficulty: 5,

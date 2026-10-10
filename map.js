@@ -1104,7 +1104,7 @@ function renderSiteScience(zone) {
 
   function surveyTargetText(iceSite) {
     if (typeof surveyTargetFor !== 'function') { return iceSite ? '3' : '4'; }
-    return String(surveyTargetFor(iceSite ? 'cabeus-b' : 'nobile'));
+    return String(surveyTargetFor(iceSite ? 'cabeus' : 'nobile'));
   }
 
   var html =

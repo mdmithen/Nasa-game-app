@@ -2481,4 +2481,39 @@ kbd {
   .map-zoom-btn { transition: none; }
 }
 
+/* ------------------------------------------------------------
+   Reduced motion, properly.
+
+   The two blocks above switch off transitions one selector at a
+   time. They leave every decorative animation running, and most of
+   these are `infinite` - a twinkling starfield, a pulsing alarm
+   border, an orbiting planet, a bobbing astronaut. An infinite
+   animation is exactly what a motion-sensitive player cannot escape
+   by scrolling past it, so the whole class is stopped here in one
+   place rather than remembered one selector at a time.
+
+   The rule is deliberately blunt (`*, *::before, *::after`): the
+   alternative is a list that silently rots every time a new keyframe
+   is added. Nothing is removed, only frozen at its first frame, so
+   the layout and the art direction are unchanged.
+   ------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* These three are state feedback rather than decoration, and a
+     frozen frame would hide the thing they are communicating. They
+     are slowed to a gentle pulse instead of stopped. */
+  .res-card.crit,
+  .score-ring,
+  .hud-challenge {
+    animation-duration: 2s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
+
 

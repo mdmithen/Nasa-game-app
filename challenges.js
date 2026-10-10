@@ -727,6 +727,10 @@ var PHASE5_OBJECTIVES = [
              countOfType('habitat') > 0 && countOfType('depot') > 0;
     },
     progress: function () {
+      /* Judged at the end, exactly like obj-thrifty. A brand new base
+         is already above 70% on every system, so without this guard
+         this objective would be handed out on day one for nothing. */
+      if (!game.finished) { return 0; }
       var all = true;
       for (var i = 0; i < MAINT_SYSTEMS.length; i++) {
         if (conditionOf(MAINT_SYSTEMS[i]) < CHALLENGE_REPAIR_TARGET) { all = false; }

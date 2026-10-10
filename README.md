@@ -132,14 +132,21 @@ map is never the only way to choose.
 
 | Site | Coordinates | Difficulty | Cargo |
 |---|---|---|---|
-| Nobile Crater | 85.2°S, 30°E | ★ | 150 |
-| Sylvester N | 81.7°S, 55°E | ★★ | 128 |
+| Nobile Crater | 85.28°S, 53.27°E | ★ | 150 |
+| Sylvester Crater | 82.65°S, 81.22°W | ★★ | 128 |
 | Haworth Crater | 81.6°S, 90°W | ★★★ | 128 |
-| Shackleton Rim | 89.9°S, 15°W | ★★★★ | 115 |
-| Tycho Crater | 43.3°S, 11°W | ★★★★ | 115 |
-| Cabeus B Floor | 85.6°S, 50°W | ★★★★★ | 108 |
+| Shackleton Crater | 89.67°S, 129.78°E | ★★★★ | 115 |
+| Tycho Crater | 43.30°S, 11.22°W | ★★★★ | 115 |
+| Cabeus Floor | 84.68°S, 48.71°W | ★★★★★ | 108 |
 
-Each site gives something and takes something away: Cabeus B has the best water-ice
+Five of those six are IAU/USGS Gazetteer centres. **Cabeus Floor is the odd one out:**
+its position is the LCROSS impact point reported by the mission team
+(Marshall et al. 2011), not a Gazetteer feature centre, because the landing site is
+where the spacecraft actually hit rather than where the crater is centred. Note also
+that the IAU feature called *Cabeus B* is a different crater entirely, 350 km to the
+north at 82.26°S — the game deliberately does not use it.
+
+Each site gives something and takes something away: Cabeus has the best water-ice
 prospect in the game and the worst sunlight; Shackleton has the best sunlight and a
 rough landing; Tycho is the dustiest and has no ice at all.
 
@@ -150,7 +157,8 @@ This is the part that matters most for honesty, so it is enforced in code and in
 - **`facts[]` — REAL SCIENCE.** Published statements about a real place. Shackleton is
   about 21 km across and about 4 km deep; polar ridges can stay lit for more than 85% of
   the cycle; permanently shadowed areas fall below −170 °C; LCROSS deliberately impacted
-  Cabeus B on 9 October 2009 and found water in the ejecta; Tycho is about 85 km wide.
+  the floor of Cabeus on 9 October 2009 and found about 5.6% water ice by mass in the
+  ejecta; Tycho is about 85 km wide.
   These are stated as fact.
 - **Everything else — GAME ESTIMATE.** Every sunlight percentage, ice percentage, dust
   figure, difficulty rating and cargo budget was invented so the trade-offs teach
@@ -189,7 +197,7 @@ scene, so the arrangement you make is literally the base you walk around in.
 | Landing pad and rover park | `pad` | 10 | 1 | Delivers supplies and takes the crew home |
 
 A minimum base costs **108**. The landing site decides how much cargo is delivered
-(108 at Cabeus B up to 150 at Nobile), so a hard site leaves no room for a second solar
+(108 at Cabeus up to 150 at Nobile), so a hard site leaves no room for a second solar
 array and an easy one does. That is the trade-off the zone choice and the layout choice
 pull against each other.
 
@@ -297,7 +305,7 @@ Every one of these is a GAME ESTIMATE read from `sites.js`:
 | Site factor | What it does |
 |---|---|
 | Sunlight and power bonus | Scale how much electricity the arrays make |
-| Heat | Warm ground costs less power for heating (Cabeus B is nearly warm, Shackleton is cold) |
+| Heat | Warm ground costs less power for heating (Cabeus is nearly warm, Shackleton is cold) |
 | Ice | Ice-rich ground gives the water recycler better raw material |
 | Dust | Costs solar output, and makes equipment wear down faster |
 
@@ -310,9 +318,9 @@ The minimum base at each site, measured from the automated tests:
 | Nobile Crater | 18.3 | +2.2 | 1.6 |
 | Tycho Crater | 17.1 | +1.8 | 0.8 |
 | Haworth Crater | 16.2 | +0.7 | 1.0 |
-| Cabeus B Floor | 9.6 | **−5.1** | 0.2 |
+| Cabeus Floor | 9.6 | **−5.1** | 0.2 |
 
-Cabeus B is the point of the map. The Sun never reaches that crater floor, so the
+Cabeus is the point of the map. The Sun never reaches that crater floor, so the
 base runs on a single array that barely covers the daily draw — and 108 cargo is
 exactly the cost of the eight structures, so there is nothing left to spend on a
 second array. It is survivable for about twenty days on power and nothing more. A
@@ -444,7 +452,8 @@ Checked against the IAU and USGS Gazetteer of Planetary Nomenclature:
 | [IAU/USGS Gazetteer of Planetary Nomenclature](https://planetarynames.wr.usgs.gov/) | Crater names, diameters and centre coordinates |
 | [Mazarico et al. (2011), *Icarus* 211](https://doi.org/10.1016/j.icarus.2010.10.030) | Sunlight modelling from LOLA topography; 89.3% at a point on the Shackleton rim |
 | [Li et al. (2018), *PNAS* 115](https://doi.org/10.1073/pnas.1802345115) | M3 detection of water ice at the surface; detections cluster near Haworth, Shoemaker, Sverdrup and Shackleton |
-| [NASA LCROSS](https://science.nasa.gov/moon/moon-water-and-ices/) | The deliberate crash into Cabeus, and the water measured in the plume |
+| [NASA LCROSS](https://science.nasa.gov/moon/moon-water-and-ices/) | The deliberate crash into Cabeus, and the water measured in the plume (5.6 ± 2.9% by mass) |
+| [Marshall et al. (2011), *Locating the LCROSS Impact Craters*](https://arxiv.org/abs/1103.1687) | The Cabeus Floor landing-site coordinate: 84.6796°S, 48.7093°W |
 | [Tye et al. (2015), NASA technical report](https://ntrs.nasa.gov/citations/20150006822) | Shackleton 20.9 km, Haworth 51.4 km; ~1–2% ice by mass in the surface regolith |
 | [NASA PGDA LOLA south pole DEMs](https://pgda.gsfc.nasa.gov/data/LOLA_5mpp/) | The real elevation and slope data — **not bundled** |
 
@@ -464,7 +473,7 @@ anywhere. A test asserts every `elevation` and `slope` field is `null`.
 
 | Site | Status | Why |
 |---|---|---|
-| Cabeus B | **detected** | LCROSS crashed there in 2009 and measured water in the plume |
+| Cabeus | **detected** | LCROSS crashed there in 2009 and measured water in the plume |
 | Shackleton, Haworth | **cluster** | M3 detections cluster near these craters — promising, not proven for the landing spot |
 | Nobile, Sylvester | **not-detected** | Inside the polar band, looked for, not found |
 | Tycho | **out-of-band** | At 43°S. No ice has ever been found below 70° latitude |
@@ -727,7 +736,7 @@ Every mission day the base automatically:
 
 Since Phase 3 the numbers come from the base and the site rather than from constants.
 With the minimum base at Nobile Crater the base gains about +2.2 power, loses 4
-oxygen, 0.6 water and 2 food a day. At Cabeus B it **loses 5.1 power a day**. The full
+oxygen, 0.6 water and 2 food a day. At Cabeus it **loses 5.1 power a day**. The full
 table is in section 2g.
 
 The fewer astronauts are still healthy, the less the base consumes — but losing crew
@@ -1134,8 +1143,8 @@ at four camera positions.
 
 - All six sites produce a different projected power balance, and all six are still
   survivable over 16 days at the minimum base
-- Shackleton beats Cabeus B by 11 power a day; Cabeus B generates barely a third of
-  Nobile's solar; Cabeus B needs the least heating and Tycho loses the most to dust
+- Shackleton beats Cabeus by 11 power a day; Cabeus generates barely a third of
+  Nobile's solar; Cabeus needs the least heating and Tycho loses the most to dust
 - **Three solar arrays raise generation from 18.3 to 36.5** and turn the balance from
   +2.2 to +19.4; removing the only array turns it to −6.4
 - Removing the habitat turns daily health from +3 to −4
@@ -1239,7 +1248,7 @@ positions.
 - Every verified row carries a citation link, and no verified row is a game number
 - Elevation and slope are always reported as missing
 - Tycho explains its lack of ice as an *interpretation*, with the latitude that drives it
-- Cabeus B reports the LCROSS measurement directly
+- Cabeus reports the LCROSS measurement directly
 - Game values are still labelled `GAME ESTIMATE`, and now sit *below* the verified data
 
 **NASA images, against the live API**
@@ -1253,7 +1262,7 @@ positions.
 **The site reaches the mission**
 
 - A confirmed ice site lowers the survey target to 3; everywhere else it stays at 4
-- Three structures complete the survey at Cabeus B and do *not* elsewhere
+- Three structures complete the survey at Cabeus and do *not* elsewhere
 - The results report carries the ice summary line
 - Scoring bands (24 + 6 = 30), the 16-day limit and the objective list are intact
 - The world, animations, builder, pre-flight checklist (now with a fourth "published
@@ -1303,7 +1312,7 @@ still **byte-for-byte identical** to the previous commit.
 
 - Six required and six optional, with the original six all still required and the two
   science objectives now optional
-- `Bring an ice sample back` appears at Cabeus B and not at Tycho — the Phase 4 record
+- `Bring an ice sample back` appears at Cabeus and not at Tycho — the Phase 4 record
   driving a Phase 5 objective
 - `Finish with every system above 70%` appears only with a habitat and a depot built
 - Progress is reported (`3/6`), never exceeds its target, and is drawn in the HUD
@@ -1403,3 +1412,123 @@ The project is deliberately modular so it can grow:
 
 Add new events to the `EVENTS` object and a matching day to the `SCHEDULE` object.
 Nothing else needs to change.
+
+---
+
+## 8. Phase 6 — final testing, bug fixing and readiness
+
+Phase 6 changed no game rules. It read every file, tested every feature end to end,
+fixed the three real defects it found, and left everything else alone.
+
+### 8a. What was found, and what was actually broken
+
+A first pass reported 17 failures. Triaging each one against the source, **14 were wrong
+tests, not wrong code** — assertions written against a guess rather than against the
+design. Those tests were rewritten to state the invariant instead of a guessed number.
+Three were real defects:
+
+1. **An objective was handed out for free on day one.**
+   `obj-serviceable` reads "Finish the mission with every system above 70% condition".
+   Its sibling `obj-thrifty` guards its progress check with `if (!game.finished) return 0`,
+   because both are end-of-mission objectives and neither is knowable during play.
+   `obj-serviceable` was missing that identical guard, so on day one a brand new base is
+   already at ~98% condition on every system and the player banked the objective without
+   ever opening a maintenance panel. Fixed by adding the same guard.
+
+2. **`prefers-reduced-motion` only switched off transitions.**
+   Two media blocks stopped hover-lifts and panel transitions, but left all twelve
+   decorative `@keyframes` running — a twinkling starfield, a pulsing alarm border, an
+   orbiting planet, a bobbing astronaut. Those are `infinite`, so they never stop and
+   cannot be scrolled past. A single blunt rule now freezes them at their first frame,
+   with the three that carry state (`.res-card.crit`, `.score-ring`, `.hud-challenge`)
+   dropped to a gentle pulse instead of frozen, because a frozen frame would hide the
+   very thing they are communicating.
+
+3. **A landing site was named after the wrong crater.**
+   "Cabeus B Floor" was placed at 85.6°S, 50°W, which was wrong twice over. The IAU
+   feature called *Cabeus B* is a different crater 350 km to the north at 82.26°S,
+   54.58°W, and LCROSS never went there — LCROSS impacted the floor of **Cabeus**. The
+   coordinate was also about 0.9° off: the LCROSS team published the impact point as
+   84.6796°S, 48.7093°W (Marshall et al. 2011). The site is now **Cabeus Floor** at the
+   measured impact point, with the impact coordinates and their uncertainties recorded
+   in `lunar-data.js` as their own cited entry.
+
+### 8b. The README was wrong about the sites
+
+The site table still listed the coordinates Phase 4 had already found and corrected —
+Nobile at 85.2°S 30°E, "Sylvester N", Shackleton at 89.9°S 15°W. Documentation that
+contradicts the code is the same class of bug as wrong code, so the table now matches
+`sites.js`, and it says plainly that Cabeus Floor is a mission site rather than a
+Gazetteer feature centre.
+
+### 8c. What Phase 6 verified rather than changed
+
+These were checked because the brief asks for them, and none needed a fix:
+
+- **Movement.** Walk, jump, land and the work animation all behave. The freeze while a
+  station panel is open, and while building, is applied by `worldLoop` and not by
+  `updateHero`, so the test drives the real `requestAnimationFrame` loop rather than
+  calling the update function directly and concluding the astronaut was never frozen.
+- **No duplicate listeners.** `wireUp()` and `wireUpMap()` each run exactly once, so no
+  listener is ever attached twice. Triple-clicking a decision pays exactly once, and a
+  rapid triple-click on Continue advances exactly one day.
+- **Collision prevention.** A 600-placement fuzz across every structure type, including
+  drags that snap past the edge of the plot, produced **zero overlaps** and left every
+  structure inside the plot. Clamping an out-of-bounds drag is safe because the
+  collision check runs *after* snapping.
+- **Scoring.** A perfect mission is exactly 100, a failed one 60, a wiped-out base 0.
+  Absurd values clamp to the 0-100 bar, NaN is replaced rather than propagated, and a
+  stray key in `game.completed` cannot inflate the score.
+- **Reset.** Restart clears the day, challenges, badges, objectives, exploration,
+  surveys, choice tally, storms, pickups, score and the ending.
+- **Degradation.** The game still starts and plays with `mission.js` or `challenges.js`
+  missing, and with a half-built DOM.
+- **The 16-day limit.** Day 16 is the last playable day; day 17 always fails, including
+  a success earned after the limit, which `sanitizeMission` downgrades.
+
+### 8d. Performance
+
+Measured in headless Chrome, averaged over 200 iterations:
+
+| Operation | Time |
+|---|---|
+| World frame (`updateHero` + `render`) | **0.15 ms** |
+| Full day cycle + re-render | **0.10 ms** |
+| Map frame (`drawMap`) | **0.18 ms** |
+| Re-render the site panel | **0.59 ms** |
+| Re-render the builder | **0.90 ms** |
+
+Against a 16.7 ms frame budget that is roughly a hundredth of the budget for the
+heaviest operation, and the game holds **63 frames in one second**. Nothing needed
+optimising: there is no unbounded loop, no per-frame allocation storm, and no repeated
+recomputation worth caching. No performance change was made, which is the intended
+outcome rather than an omission.
+
+### 8e. Accessibility
+
+- Both canvases carry `aria-label`; every site and every palette entry is a real
+  `<button>` reachable by keyboard, not a canvas hit target.
+- Every visible button has a discernible text label, aria-label or title.
+- The objective toggle reports `aria-expanded` and `aria-controls`, and is operable
+  from the keyboard.
+- Reduced motion is handled in two places: `mapReduceMotion` draws the map as one
+  still frame, and the CSS now freezes the decorative animations as well.
+- No horizontal overflow on **six screens** at six viewport sizes from 1920×1080 down
+  to 320×568.
+
+### 8f. Test totals
+
+533 automated checks across all phases, all passing:
+
+| Suite | Checks |
+|---|---|
+| Phase 6 (this phase) | 138 |
+| Phase 5 | 128 |
+| Phase 3 | 112 |
+| Phase 4 | 101 |
+| Phase 1/2 | 42 |
+| Scene, standalone and bare-page | 12 |
+
+One stale guard in the Phase 2 scene-comparison suite asserted that `HEAD` contained no
+`mission.js`, which was true when Phase 2 was the newest work and is not now. It was
+replaced with a check that the baseline files genuinely came out of git.

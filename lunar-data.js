@@ -100,6 +100,16 @@ var LUNAR_SOURCES = {
     note: 'Deliberately crashed into the Cabeus crater floor and measured the plume it threw up.'
   },
 
+  'lcross-impact': {
+    id: 'lcross-impact',
+    label: 'Locating the LCROSS Impact Craters, Marshall et al. (2011)',
+    short: 'LCROSS impact site',
+    instrument: 'LRO imagery registration plus ground tracking',
+    mission: 'LCROSS',
+    url: 'https://arxiv.org/abs/1103.1687',
+    note: 'Weighted-average Centaur impact location: 84.6796 S, 48.7093 W.'
+  },
+
   tye2015: {
     id: 'tye2015',
     label: 'Tye et al. (2015), NASA technical report',
@@ -197,7 +207,7 @@ var LUNAR_REGION = {
    ------------------------------------------------------------ */
 
 var LUNAR_SITES = {
-  'cabeus-b': {
+  'cabeus': {
     crater: {
       name: 'Cabeus',
       featureId: 953,
@@ -205,6 +215,18 @@ var LUNAR_SITES = {
       centerLat: -85.33,
       centerLon: -42.13,
       sourceId: 'gazetteer'
+    },
+    /* The landing site is the LCROSS impact point, not the crater centre
+       and not the IAU feature called "Cabeus B" - that is a different
+       crater 350 km to the north, at 82.26 S, 54.58 W. Naming this site
+       "Cabeus B" was wrong: the only water ever measured by digging was
+       measured here, on the floor of Cabeus itself. */
+    impactSite: {
+      lat: -84.6796,
+      lon: -48.7093,
+      uncertaintyM: { lat: 115, lon: 44 },
+      note: 'Weighted-average Centaur impact location reported by the LCROSS team.',
+      sourceId: 'lcross-impact'
     },
     illumination: {
       pct: null,
@@ -216,7 +238,7 @@ var LUNAR_SITES = {
       headline: 'Water measured directly at this crater',
       detail: 'On 9 October 2009 NASA\'s LCROSS spacecraft deliberately crashed into the Cabeus floor and ' +
               'flew through the plume it kicked up. The instruments measured water and other volatiles in ' +
-              'the thrown-out material - roughly 5% of the sample. This is the only place in the game where ' +
+              'the thrown-out material - about 5.6% of the sample by mass. This is the only place in the game where ' +
               'somebody has physically dug into the ground and found water.',
       sourceId: 'lcross'
     },
