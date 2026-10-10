@@ -14,7 +14,7 @@ no API keys, no install. Double-click `index.html` and play.
 
 1. Open the `junior-astronaut-mission-trainer` folder.
 2. Double-click **`index.html`**.
-3. It opens in your default browser. Press **Start Mission**.
+3. It opens in your default browser. Press **Start Mission**, then pick a landing site.
 
 That is the whole install. You can also right-click `index.html` → *Open with* →
 Chrome, Edge or Firefox.
@@ -28,11 +28,13 @@ Chrome, Edge or Firefox.
 
 | File | What it does |
 |---|---|
-| `index.html` | All five screens: welcome, how to play, learn, the playable Moon Base, results |
+| `index.html` | All six screens: welcome, how to play, learn, the landing map, the playable Moon Base, results |
 | `style.css` | The dark space theme, resource cards, the CSS-drawn Moon base, every keyframe |
 | `script.js` | All the **rules**: settings, events, resource maths, scoring, the station bridge, the NASA panel |
 | `world.js` | All the **drawing and movement**: the structure catalogue, terrain, astronaut, physics, camera |
 | `sprites.js` | Generated frame map — where each frame sits inside `assets/sprites.png` |
+| `sites.js` | The landing site data: real coordinates, real facts, and the clearly separated game estimates |
+| `map.js` | The landing map screen: draws the south pole, hit-testing, selection and comparison |
 | `fx.js` | Animations only — the canvas space background and all UI motion |
 | `assets/sprites.png` | The one image file. Astronaut and structure artwork |
 | `tools/make-sprites.html` | Draws the sprite sheet in a browser |
@@ -89,6 +91,74 @@ simulation cannot be changed halfway through by something upstream.
 
 Rocks are generated clear of every placed structure (`clearOfStations()`), so a
 structure can never be built on top of terrain the player cannot see.
+
+---
+
+## 2e. The landing map
+
+**Start Mission opens the map first**, before the Moon Base. The player picks one of
+six real sites on the lunar south pole, then lands.
+
+| | File | Role |
+|---|---|---|
+| Data | `sites.js` | `ZONES[]` — coordinates, facts, game estimates. No DOM. |
+| Screen | `map.js` | Projection, drawing, hit-testing, selection, comparison |
+
+### The projection
+
+A **polar stereographic** view centred on the south pole: the pole is at the centre and
+distance from the centre grows with distance away from it. This is the kind of map NASA
+uses for polar targets, and it is chosen over a globe view because sites between 81°S
+and 90°S would otherwise bunch up along the edge.
+
+Sites near the pole are genuinely only a few pixels apart on that projection, so
+**dots stay at their true coordinates and labels sit on a ring**, in geographic order,
+joined by leader lines. Both the dot and its label chip are click targets, and the
+label is the roomy one — the polar dots are 16 to 23 px apart.
+
+The site list in the side panel is always present and fully keyboard reachable, so the
+map is never the only way to choose.
+
+### The six sites
+
+| Site | Coordinates | Difficulty | Cargo |
+|---|---|---|---|
+| Nobile Crater | 85.2°S, 30°E | ★ | 150 |
+| Sylvester N | 81.7°S, 55°E | ★★ | 128 |
+| Haworth Crater | 81.6°S, 90°W | ★★★ | 128 |
+| Shackleton Rim | 89.9°S, 15°W | ★★★★ | 115 |
+| Tycho Crater | 43.3°S, 11°W | ★★★★ | 115 |
+| Cabeus B Floor | 85.6°S, 50°W | ★★★★★ | 108 |
+
+Each site gives something and takes something away: Cabeus B has the best water-ice
+prospect in the game and the worst sunlight; Shackleton has the best sunlight and a
+rough landing; Tycho is the dustiest and has no ice at all.
+
+### Fact versus estimate
+
+This is the part that matters most for honesty, so it is enforced in code and in tests.
+
+- **`facts[]` — REAL SCIENCE.** Published statements about a real place. Shackleton is
+  about 21 km across and about 4 km deep; polar ridges can stay lit for more than 85% of
+  the cycle; permanently shadowed areas fall below −170 °C; LCROSS deliberately impacted
+  Cabeus B on 9 October 2009 and found water in the ejecta; Tycho is about 85 km wide.
+  These are stated as fact.
+- **Everything else — GAME ESTIMATE.** Every sunlight percentage, ice percentage, dust
+  figure, difficulty rating and cargo budget was invented so the trade-offs teach
+  cleanly. They are **not** NASA measurements, not mission-planning figures, and not
+  claims about what a real base would find. Each one is tagged `GAME ESTIMATE` where it
+  is shown, and the screen carries a standing disclaimer.
+
+`lat` and `lon` are real and are what places the marker. A test asserts that no site's
+own invented percentages ever appear inside its `facts[]`, so a game estimate cannot
+quietly end up under a `REAL SCIENCE` label.
+
+### What the site does and does not do yet
+
+The chosen site is carried through `currentPlan()` into `game.zoneId`, and the report on
+the results screen names it. **The site does not yet change any simulation number** —
+that is Phase 3, and until then the neutral modifiers keep day-one values exactly as
+they have always been. There is a test for that too.
 
 ---
 
@@ -384,7 +454,7 @@ emulation) and in Node.js:
 - Restart returns every resource, modifier, objective, score and the day counter to
   their starting values, and a second full mission can then be played
 - Double-clicking an option or **Continue to Next Day** is ignored
-- **No horizontal overflow** and **no clipped text** on all five screens at
+- **No horizontal overflow** and **no clipped text** on all six screens at
   **390 × 844 (phone)**, **768 × 1024 (tablet)** and **1440 × 900 (desktop)**
 - The live NASA panel loads three real records; the game also completes normally when
   that request is refused
@@ -425,6 +495,33 @@ no JavaScript errors):
 - **The rendered world is byte-for-byte identical to the previous version** at four
   different camera positions, compared by SHA-256 with the clock, particles, stars
   and pickups pinned
+
+### 7a. Phase 1 landing map
+
+Re-tested after adding the map (96 automated checks total, 0 failures, no JavaScript
+errors). The Phase 0 checks still pass, now routed through the map.
+
+- Six sites with unique ids, valid southern coordinates, and no gaps in the difficulty
+  scale from ★ to ★★★★★
+- Every site states at least two advantages **and** at least two disadvantages
+- **Honesty checks:** no site carries a `GAME ESTIMATE` marker inside its `facts[]`, no
+  site's own invented percentages appear in its own facts, and the standing disclaimer
+  is present on screen
+- `Land Here` stays hidden until a site is chosen; landing with nothing selected is
+  refused; `Back` returns to the welcome screen
+- Every site is reachable three ways: its dot, its label chip, and the keyboard-reachable
+  list. Clicking empty sky selects nothing
+- Comparison pins up to three sites, drops the oldest when a fourth is added, unpins
+  correctly, and marks its rows as game values
+- Re-opening the map clears the previous choice; leaving the map stops its render loop
+- **The site changes nothing about the simulation yet:** day-one resources are identical
+  with a site chosen and with none, which is what makes Phase 3 the first place the
+  site can affect play
+- The map screen has no horizontal overflow at **390 × 844**, **768 × 1024** or
+  **1440 × 900**
+- `script.js` still runs standalone with `world.js` absent, and the site is still carried
+  through to the mission
+- The 2D Moon Base is still **byte-for-byte identical** to before Phase 1
 
 ### Still worth checking by hand
 

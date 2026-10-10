@@ -1690,3 +1690,205 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   .station-panel, .panel-inner { animation: none; }
 }
+
+/* ============================================================
+   17. THE LANDING MAP (Phase 1)
+   Two columns on a desktop, stacked on a phone. Nothing here
+   overrides the play screen, which is untouched.
+   ============================================================ */
+
+.screen-map {
+  padding: 0;
+  max-width: none;
+  min-height: 100vh;
+}
+
+.map-stage {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(340px, 460px);
+  gap: 0;
+  align-items: stretch;
+  min-height: 100vh;
+}
+
+.map-view {
+  position: relative;
+  min-height: 62vh;
+  background: #050b1c;
+  border-right: 1px solid var(--line);
+}
+
+#map-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 62vh;
+  cursor: crosshair;
+  touch-action: manipulation;
+}
+
+.map-side {
+  padding: 22px 22px 40px;
+  overflow-y: auto;
+  max-height: 100vh;
+}
+
+.map-heading { font-size: 1.5rem; margin-bottom: 6px; }
+.map-lead { color: var(--grey); font-size: .92rem; margin-bottom: 16px; }
+
+/* ---- the site list: the keyboard route to every marker ---- */
+
+.zone-list { display: grid; gap: 8px; margin-bottom: 18px; }
+
+.zone-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  background: rgba(16, 29, 66, .72);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--white);
+  padding: 9px 12px;
+  font: inherit;
+  transition: border-color .18s, background .18s, transform .18s;
+}
+
+.zone-chip:hover { border-color: var(--cyan-dim); transform: translateY(-1px); }
+.zone-chip.is-selected {
+  border-color: #ffd166;
+  background: rgba(255, 209, 102, .12);
+}
+
+.zone-chip-name { font-weight: 700; font-size: .92rem; }
+.zone-chip-meta { color: var(--grey); font-size: .74rem; white-space: nowrap; }
+
+/* ---- the detail card ---- */
+
+.zone-panel {
+  background: rgba(10, 20, 48, .7);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.zone-empty { color: var(--grey); font-size: .92rem; margin: 0; }
+.zone-coords { color: var(--cyan); font-size: .8rem; margin: 0 0 10px; }
+.zone-summary { color: var(--grey); font-size: .92rem; margin-bottom: 14px; }
+
+.zone-scores {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.zone-score {
+  background: rgba(23, 42, 86, .6);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+.zone-score-label { display: block; font-size: .68rem; color: var(--grey); }
+.zone-score-value { display: block; font-weight: 800; font-size: 1rem; color: var(--warn); }
+
+.zone-meters { margin-bottom: 14px; }
+.zone-meter { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.zone-meter-label { flex: 1 1 auto; font-size: .78rem; color: var(--grey); }
+.zone-meter-track {
+  flex: 0 0 90px;
+  height: 7px;
+  background: rgba(255, 255, 255, .1);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.zone-meter-fill { display: block; height: 100%; border-radius: 999px; background: var(--cyan-dim); }
+.zone-meter-fill.is-high { background: var(--good); }
+.zone-meter-fill.is-mid  { background: var(--warn); }
+.zone-meter-fill.is-low  { background: var(--bad); }
+.zone-meter-value { flex: 0 0 38px; text-align: right; font-size: .74rem; color: var(--white); }
+.zone-meter-note { font-size: .66rem; color: #7f92b8; margin: 0 0 10px; }
+.zone-meter-note strong { color: var(--warn); }
+
+.zone-multiplier {
+  flex: 0 0 46px;
+  text-align: right;
+  font-weight: 800;
+  font-size: .84rem;
+}
+.zone-multiplier.is-good { color: var(--good); }
+.zone-multiplier.is-mid  { color: var(--warn); }
+.zone-multiplier.is-bad  { color: var(--bad); }
+
+.zone-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.zone-col h3 { font-size: .74rem; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .05em; }
+.zone-col ul { list-style: none; padding: 0; margin: 0; }
+.zone-col li { font-size: .78rem; color: var(--grey); margin-bottom: 6px; padding-left: 16px; position: relative; }
+.zone-col li::before { position: absolute; left: 0; }
+.zone-pro { color: var(--good); }
+.zone-pro li::before { content: '+'; color: var(--good); font-weight: 800; }
+.zone-con { color: var(--bad); }
+.zone-con li::before { content: '-'; color: var(--bad); font-weight: 800; }
+
+.zone-facts-head { font-size: .84rem; margin-bottom: 8px; color: var(--white); }
+.zone-facts { margin: 0 0 14px 18px; }
+.zone-facts li { font-size: .8rem; color: var(--grey); margin-bottom: 8px; }
+
+.zone-estimate-note {
+  font-size: .7rem;
+  color: #7f92b8;
+  border-left: 2px solid var(--warn);
+  padding-left: 10px;
+  margin: 0 0 12px;
+}
+
+/* ---- comparison table ---- */
+
+.zone-compare { margin-top: 18px; }
+.zone-compare-scroll { overflow-x: auto; }
+.zone-compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .74rem;
+  margin-bottom: 10px;
+}
+.zone-compare-table th, .zone-compare-table td {
+  border: 1px solid var(--line);
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+.zone-compare-table thead th { background: rgba(23, 42, 86, .85); color: var(--cyan); }
+.zone-compare-table tbody th { color: var(--grey); font-weight: 600; white-space: nowrap; }
+.zone-compare-table em { color: var(--warn); font-style: normal; font-size: .9em; }
+
+.map-actions { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+.map-actions .btn { margin-top: 0; }
+
+/* ---- narrow screens: the map goes above the panel ---- */
+
+@media (max-width: 900px) {
+  .map-stage { grid-template-columns: 1fr; }
+  .map-view { min-height: 46vh; border-right: 0; border-bottom: 1px solid var(--line); }
+  #map-canvas { min-height: 46vh; }
+  .map-side { max-height: none; }
+}
+
+@media (max-width: 560px) {
+  .map-heading { font-size: 1.2rem; }
+  .map-side { padding: 16px 14px 34px; }
+  .zone-chip { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .zone-meter-track { flex-basis: 64px; }
+  .zone-cols { grid-template-columns: 1fr; }
+  .zone-scores { grid-template-columns: 1fr; }
+  .map-actions .btn { flex: 1 1 auto; }
+}
+
+/* the map loop stops on its own when the screen hides, but if motion
+   is reduced the pulsing markers must not restart either */
+@media (prefers-reduced-motion: reduce) {
+  .zone-chip { transition: none; }
+  .zone-chip:hover { transform: none; }
+}

@@ -842,12 +842,17 @@ function installScreenTransitions() {
 function onScreenChanged(name) {
   /* The 2D game draws its own sky on #game-canvas. Hide this file's
      animated background while the game is on screen, otherwise you
-     would see two skies fighting each other. */
+     would see two skies fighting each other. The landing map keeps
+     the starfield, because it is drawn on top of it. */
   var sky = document.getElementById('space-bg');
   var vign = document.querySelector('.vignette');
   var hiding = (name === 'game');
   if (sky) { sky.style.display = hiding ? 'none' : ''; }
   if (vign) { vign.style.display = hiding ? 'none' : ''; }
+
+  /* The map runs its own loop, and only while it is the visible
+     screen, so leaving it has to stop that loop. */
+  if (name !== 'map' && typeof mapStop === 'function') { mapStop(); }
 
   if (name === 'game') { revealDashboard(); }
   if (name === 'learn') { watchLearnCards(); }

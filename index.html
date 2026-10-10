@@ -55,9 +55,9 @@
 
     <p class="intro">
       You are the Mission Commander of <strong>Base Selene</strong>, a small lunar outpost.
-      Three astronauts depend on you for oxygen, water, food and electricity.
-      Every day brings a new problem: a broken solar panel, a leaking tank, a dust storm.
-      Your choices decide whether everyone comes home.
+      First you choose where to land, then three astronauts depend on you for oxygen,
+      water, food and electricity. Every day brings a new problem: a broken solar panel,
+      a leaking tank, a dust storm. Your choices decide whether everyone comes home.
     </p>
 
     <div class="welcome-actions">
@@ -259,7 +259,54 @@
 
 
 <!-- ============================================================
-     SCREEN 4: THE PLAYABLE 2D MOON BASE
+     SCREEN 4: THE MOON LANDING MAP
+     The first thing a player now does: choose where to land.
+     Anything on this screen marked GAME ESTIMATE was invented for
+     this game. Anything marked REAL SCIENCE is published fact.
+     ============================================================ -->
+<section id="screen-map" class="screen screen-map" hidden>
+  <div class="map-stage">
+
+    <div class="map-view">
+      <canvas id="map-canvas" aria-label="Map of the lunar south pole with selectable landing sites"></canvas>
+    </div>
+
+    <div class="map-side">
+
+      <h1 class="map-heading">Choose a Landing Site</h1>
+      <p class="map-lead">
+        Six real places on the Moon. Each one gives you something and takes
+        something away. Pick a marker on the map, or use the list.
+      </p>
+
+      <div id="zone-list" class="zone-list" role="group" aria-label="Landing sites"></div>
+
+      <div id="zone-panel" class="zone-panel"></div>
+
+      <div id="zone-compare" class="zone-compare" hidden></div>
+
+      <div class="map-actions">
+        <button id="btn-confirm-site" class="btn btn-primary" type="button" hidden>
+          Land Here
+        </button>
+        <button id="btn-map-back" class="btn btn-ghost" type="button">Back</button>
+      </div>
+
+      <p class="disclaimer">
+        <strong>Real places, invented numbers.</strong> Site names, coordinates
+        and the facts marked <span class="tag tag-fact">REAL SCIENCE</span> are
+        published science. Every percentage, difficulty rating and cargo figure
+        marked <span class="tag tag-game">GAME ESTIMATE</span> was made up for this
+        game to make the trade-offs teachable.
+      </p>
+
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SCREEN 5: THE PLAYABLE 2D MOON BASE
      ============================================================ -->
 <section id="screen-game" class="screen screen-game" hidden>
   <div class="stage">
@@ -382,7 +429,7 @@
 
 
 <!-- ============================================================
-     SCREEN 5: RESULTS
+     SCREEN 6: RESULTS
      ============================================================ -->
 <section id="screen-result" class="screen screen-center" hidden>
   <div class="page-card result-card">
@@ -442,6 +489,8 @@
 </section>
 
 <script src="sprites.js"></script>
+<script src="sites.js"></script>
+<script src="map.js"></script>
 <script src="script.js"></script>
 <script src="world.js"></script>
 <script src="fx.js"></script>

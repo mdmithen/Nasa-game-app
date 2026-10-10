@@ -741,6 +741,7 @@ function createNewGame() {
     decisionLocked: false,
     advancing: false,
     layout: null,         // the base: [{uid, type, x}]. set by applyBase()
+    zoneId: null,         // which landing site was chosen, if any
     stationEvent: null,        // station type hosting today's scenario
     stationEventKey: null,     // which scenario that is
     stationOpen: false,        // is a station panel on screen?
@@ -1189,12 +1190,17 @@ function defaultLayout() {
   return (typeof DEFAULT_LAYOUT !== 'undefined') ? DEFAULT_LAYOUT : [];
 }
 
-/* The base the next mission will be played on.
-   A later phase will build this from the landing site the player
-   picked and the layout they designed. Until then it is simply the
-   starting base, which is exactly what has always been played. */
+/* The base and the landing site the next mission will be played on.
+   Phases 2 and 3 fill in the layout and the site modifiers. Until
+   then the base is the starting base and, if no site was chosen on
+   the map, the modifiers are all neutral so nothing changes. */
 function currentPlan() {
-  return { layout: defaultLayout() };
+  var zone = (typeof selectedZone === 'function') ? selectedZone() : null;
+  return {
+    zoneId: zone ? zone.id : null,
+    zoneMods: (typeof zoneModsFor === 'function') ? zoneModsFor(zone) : null,
+    layout: defaultLayout()
+  };
 }
 
 /* Copy a planned base into the running game and put it on the surface.
@@ -1209,6 +1215,8 @@ function applyBase(plan) {
   for (var i = 0; i < wanted.length; i++) {
     game.layout.push({ uid: wanted[i].uid, type: wanted[i].type, x: wanted[i].x });
   }
+
+  game.zoneId = (plan && plan.zoneId) ? plan.zoneId : null;
 
   if (window.world && typeof world.applyLayout === 'function') {
     world.applyLayout(game.layout);
@@ -1593,6 +1601,11 @@ function buildReport() {
   var done = objectivesDone();
   var parts = [];
 
+  var zone = (typeof zoneById === 'function') ? zoneById(game.zoneId) : null;
+  if (zone) {
+    parts.push('You landed at ' + zone.name + ' (' + zone.coords + ').');
+  }
+
   if (game.success) {
     parts.push('Mission success. You completed all ' + OBJECTIVES.length +
       ' objectives in ' + Math.min(game.day, MISSION_LENGTH_DAYS) + ' days.');
@@ -1742,8 +1755,32 @@ function goBackToWelcome() {
   showScreen('welcome');
 }
 
+/* The landing map owns its own buttons, but wiring them here keeps
+   every listener in one place like the rest of the game. */
+function wireUpMap() {
+  if (typeof el !== 'function') { return; }
+
+  var back = el('btn-map-back');
+  if (back) { back.addEventListener('click', goBackToWelcome); }
+
+  var confirm = el('btn-confirm-site');
+  if (confirm) {
+    confirm.addEventListener('click', function () {
+      if (typeof confirmLandingSite === 'function') { confirmLandingSite(); }
+    });
+  }
+
+  if (typeof setupMapInput === 'function') { setupMapInput(); }
+}
+
 function wireUp() {
-  el('btn-start').addEventListener('click', startMission);
+  /* Every "Start Mission" button now opens the landing map first,
+     because choosing a site is the first step of a mission. */
+  if (typeof openMap === 'function') {
+    el('btn-start').addEventListener('click', openMap);
+  } else {
+    el('btn-start').addEventListener('click', startMission);
+  }
 
   el('btn-howto').addEventListener('click', function () { showScreen('howto'); });
   el('btn-learn').addEventListener('click', function () { showScreen('learn'); });
@@ -1752,7 +1789,9 @@ function wireUp() {
 
   var goStart = document.querySelectorAll('.js-go-start');
   for (var i = 0; i < goStart.length; i++) {
-    goStart[i].addEventListener('click', startMission);
+    goStart[i].addEventListener('click', function () {
+      if (typeof openMap === 'function') { openMap(); } else { startMission(); }
+    });
   }
   var goWelcome = document.querySelectorAll('.js-go-welcome');
   for (var w = 0; w < goWelcome.length; w++) {
@@ -1805,4 +1844,5 @@ function wireUp() {
 
 game = createNewGame();
 wireUp();
+wireUpMap();
 showScreen('welcome');
