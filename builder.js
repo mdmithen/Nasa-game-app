@@ -255,9 +255,29 @@ function builderApply() {
    4. READINESS
    A mission is going to be asked to use each of these, so a base that
    is missing one of them cannot be launched.
+
+   Phase 3 replaced the bare "missing structure" list with the full
+   pre-flight check in mission.js, which also looks at the stores the
+   crew departs with and at whether the base can keep them up at the
+   chosen site. The structure list is still what the player sees first,
+   because that is the part they can act on by building something.
    ------------------------------------------------------------ */
 
 function builderMissing() {
+  /* The pre-flight check, when it is available, is the authority. */
+  if (typeof preflightMissing === 'function') {
+    var gaps = preflightMissing();
+    var structures = [];
+    for (var g = 0; g < gaps.length; g++) {
+      if (gaps[g].kind === 'structure') { structures.push(gaps[g]); }
+    }
+    if (structures.length > 0) { return structures; }
+    /* Nothing structural is missing, but something else is. The panel
+       shows the whole checklist, so this empty list only means the
+       missing part is a supply or a balance figure. */
+    if (gaps.length > 0) { return []; }
+  }
+
   var missing = [];
   for (var i = 0; i < STATION_TYPES.length; i++) {
     var t = STATION_TYPES[i];
@@ -266,7 +286,11 @@ function builderMissing() {
   return missing;
 }
 
+/* True when nothing is left to fix: every structure built, every store
+   above its minimum, and every vital resource still holding out to the
+   last day of the mission. */
 function builderReady() {
+  if (typeof preflightReady === 'function') { return preflightReady(); }
   return builderMissing().length === 0 && builderRemaining() >= 0;
 }
 
@@ -382,6 +406,7 @@ function builderRender() {
   }
 
   /* ---- what is armed / selected, and the controls ---- */
+  builderRenderChecklist();
   if (actions) {
     var note = '';
     var canGo = builderReady();
@@ -406,12 +431,7 @@ function builderRender() {
 
     var missing = builderMissing();
     var blocked = '';
-    if (missing.length > 0) {
-      var names = [];
-      for (var m = 0; m < missing.length; m++) { names.push(missing[m].name); }
-      blocked = '<p class="build-blocked"><strong>Still needed:</strong> ' +
-                names.join(', ') + '</p>';
-    } else if (builderRemaining() < 0) {
+    if (builderRemaining() < 0) {
       blocked = '<p class="build-blocked"><strong>Over budget by ' +
                 (-builderRemaining()) + '.</strong> Remove a structure to continue.</p>';
     }
@@ -432,7 +452,7 @@ function builderRender() {
       '<div class="build-buttons">' +
         autoBtn + moveBtn +
         '<button class="btn btn-primary btn-small" type="button" id="btn-build-launch"' +
-          (canGo ? '' : ' disabled') + '>Continue to Mission</button>' +
+          (canGo ? '' : ' disabled') + '>Start Mission</button>' +
       '</div>';
 
     var auto = document.getElementById('btn-build-auto');
@@ -470,11 +490,106 @@ function builderRender() {
   }
 }
 
+/* ------------------------------------------------------------
+   5b. THE PRE-FLIGHT CHECKLIST
+   Phase 3. This is the list the player reads before committing to a
+   mission, so it answers three separate questions in order:
+
+     Structures   has the crew built everything they cannot live
+                  without?
+     Supplies     are the stores they depart with above the minimum?
+     Balance      will this base still be standing on day 16, at this
+                  landing site?
+
+   A tick means ready, a cross means it blocks the launch, and a
+   warning means it will not last the whole mission but the player is
+   free to try anyway. Nothing here is hidden: a refused launch always
+   says which line refused it.
+   ------------------------------------------------------------ */
+
+function builderRenderChecklist() {
+  var box = document.getElementById('build-checklist');
+  if (!box) { return; }
+
+  /* Without mission.js there is nothing to check beyond the
+     structures, and the old behaviour stands. */
+  if (typeof preflightChecklist !== 'function') { box.innerHTML = ''; return; }
+
+  var items = preflightChecklist();
+  var headings = {
+    structure: 'Structures the crew needs',
+    supply: 'Supplies at launch',
+    balance: 'Will it last the whole mission?',
+    science: 'What the published record says'
+  };
+  var explain = {
+    structure: 'Every one of these must be built.',
+    supply: 'The crew must depart with at least this much in store.',
+    balance: 'A projection from the same numbers the real day cycle uses, ' +
+             'for the site you chose. A warning does not block the launch.',
+    science: 'Measured by NASA instruments, not invented for this game. ' +
+             'Nothing here blocks a launch - it is the reason you might have picked this site.'
+  };
+
+  var html = '<h3 class="checklist-head">Pre-flight check</h3>';
+  var groups = ['structure', 'supply', 'balance', 'science'];
+  var g;
+
+  for (g = 0; g < groups.length; g++) {
+    var kind = groups[g];
+    var rows = '';
+    var blocking = 0;
+
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].kind !== kind) { continue; }
+      if (!items[i].ok) { blocking++; }
+
+      var cls = items[i].ok ? (items[i].warn ? ' is-warn' : ' is-ok') : ' is-bad';
+      var mark = items[i].ok ? (items[i].warn ? '!' : '✓') : '✕';
+      rows +=
+        '<li class="check-row' + cls + '">' +
+          '<span class="check-mark" aria-hidden="true">' + mark + '</span>' +
+          '<span class="check-body">' +
+            '<span class="check-label">' + items[i].label + '</span>' +
+            '<span class="check-detail">' + items[i].detail + '</span>' +
+          '</span>' +
+        '</li>';
+    }
+
+    if (rows === '') { continue; }
+
+    html +=
+      '<div class="check-group">' +
+        '<h4 class="check-group-head">' + headings[kind] + '</h4>' +
+        '<ul class="check-list">' + rows + '</ul>' +
+        '<p class="check-explain">' + explain[kind] + '</p>' +
+      '</div>';
+  }
+
+  var gaps = preflightMissing();
+  if (gaps.length === 0) {
+    html += '<p class="check-verdict is-ok">Everything checks out. The mission can launch.</p>';
+  } else {
+    var names = [];
+    for (var b = 0; b < gaps.length; b++) {
+      names.push(gaps[b].label.toLowerCase());
+    }
+    html += '<p class="check-verdict is-bad"><strong>Cannot launch yet.</strong> Still to fix: ' +
+            names.join(', ') + '.</p>';
+  }
+
+  html +=
+    '<p class="check-note">Costs, limits, stores and daily balances are ' +
+    '<span class="tag tag-game">GAME ESTIMATE</span> values invented for this game. ' +
+    'The science behind the problems is real.</p>';
+
+  box.innerHTML = html;
+}
+
 /* A tiny canvas per palette entry, showing the same sprite the base
    will be built from. The markup goes in with the panel and is painted
    afterwards, because a canvas cannot be drawn into before it is in
-   the document. */
-function spriteThumbHtml(type) {
+   the document. */function spriteThumbHtml(type) {
   return '<canvas class="build-thumb" width="44" height="44" ' +
          'data-sprite="' + type.sprite + '" data-letter="' +
          type.name.charAt(0) + '"></canvas>';

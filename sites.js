@@ -24,6 +24,32 @@
    the south pole. `sunlight`, `ice`, `dust`, `heat`, `difficulty`,
    `powerBonus` and `cargo` are all GAME ESTIMATES.
 
+   PHASE 4 CORRECTIONS
+   -------------------
+   The coordinates and crater sizes below were checked against the IAU
+   and USGS Gazetteer of Planetary Nomenclature and three were wrong.
+   They are now correct:
+
+     Nobile       was 85.2 S, 30 E and "about 50 km across".
+                  The real crater is 79.27 km across, centred on
+                  85.28 S, 53.27 E. Both were wrong.
+
+     Sylvester    the site was called "Sylvester N" at 81.7 S, 55 E.
+                  There is no southern crater by that name - "Sylvester N"
+                  is a feature at 82.4 NORTH in the IAU gazetteer, so it
+                  can never be a south polar landing site. The site is now
+                  the real southern crater "Sylvester": 59.28 km across,
+                  centred on 82.65 S, 81.22 W.
+
+     Tycho        was 43.3 S, 11.4 W. The Gazetteer centre is 43.30 S,
+                  11.22 W, and the diameter is 85.29 km.
+
+     Shackleton   was 89.9 S, 15 W, which put it essentially ON the
+                  pole. The Gazetteer centre is 89.67 S, 129.78 E, and
+                  the diameter is 20.92 km.
+
+   The measured sizes, the ice record and the illumination modelling
+   now live in lunar-data.js with a citation attached to each one.
    Latitude is negative (southern hemisphere) and longitude is degrees
    east of the prime meridian.
    ============================================================ */
@@ -62,23 +88,25 @@ var ZONES = [
 
     /* ---- REAL SCIENCE ---- */
     facts: [
+      'The IAU Gazetteer lists Cabeus as 100.58 km across, centred on 85.33°S, 42.13°W. It is ' +
+      'an old crater and it holds large areas of permanent shadow.',
       'NASA\'s LCROSS mission deliberately crashed into this crater on 9 October 2009, ' +
       'and the debris it threw up contained water. That was the first direct evidence ' +
       'that water ice survives at the lunar south pole.',
       'Because the Moon is tidally locked, the Sun stays close to the horizon all day. ' +
       'Deep inside a crater like this the rim blocks it completely, so the floor stays in ' +
       'permanent shadow.',
-      'In permanent shadow the surface can fall below -170 °C, and some measured ' +
-      'spots are colder still.'
+      'Modelling with LOLA topography puts the total permanently shadowed area of the ' +
+      'southern hemisphere at about 16,055 km².'
     ]
   },
 
   {
     id: 'shackleton',
-    name: 'Shackleton Rim',
-    coords: '89.9°S, 15°W',
-    lat: -89.9,
-    lon: -15,
+    name: 'Shackleton Crater',
+    coords: '89.7°S, 129.8°E',
+    lat: -89.67,
+    lon: 129.78,
 
     /* ---- GAME ESTIMATE ---- */
     difficulty: 4,
@@ -106,22 +134,24 @@ var ZONES = [
 
     /* ---- REAL SCIENCE ---- */
     facts: [
-      'Shackleton crater is about 21 km across and about 4 km deep. Its rim stands ' +
-      'higher than almost anywhere else on the Moon.',
+      'The IAU Gazetteer lists Shackleton as 20.92 km across, centred on 89.67°S, 129.78°E. ' +
+      'Its rim encloses the lunar south pole.',
+      'Modelling with LOLA topography found a point on the Shackleton rim that is sunlit ' +
+      'for 89.3% of the lunar year, with no more than 3 days of continuous shadow. That ' +
+      'point is one spot on a very jagged rim, not the whole crater.',
       'Ridge tops and crater rims near the poles can stay lit for more than 85% of the ' +
       'lunar cycle. Scientists call these "peaks of near-continuous light".',
-      'At the poles the Sun circles the horizon at a steady height, so a site gets roughly ' +
-      'two weeks of sunlight followed by roughly two weeks of darkness, rather than the ' +
-      'single long day and night seen lower down.'
+      'Li et al. (2018) report that the southern ice detections cluster near Haworth, ' +
+      'Shoemaker, Sverdrup and Shackleton. The Sun is on the rim; the ice is on the floor.'
     ]
   },
 
   {
     id: 'tycho',
     name: 'Tycho Crater',
-    coords: '43.3°S, 11°W',
-    lat: -43.3,
-    lon: -11,
+    coords: '43.3°S, 11.2°W',
+    lat: -43.30,
+    lon: -11.22,
 
     /* ---- GAME ESTIMATE ---- */
     difficulty: 4,
@@ -149,12 +179,13 @@ var ZONES = [
 
     /* ---- REAL SCIENCE ---- */
     facts: [
-      'Tycho is about 85 km wide and about 4 km deep, and it is young - it has far ' +
+      'The IAU Gazetteer lists Tycho as 85.29 km across, centred on 43.30°S, 11.22°W.',
+      'Tycho is about 4 km deep, and it is young - it has far ' +
       'fewer craters inside it than the surface around it.',
       'Sharp lunar dust is jagged, clingy and electrostatically charged. It gets into ' +
       'seals, scratches equipment and is one of the hardest problems for any lunar base.',
-      'Low on the Moon\'s rim of the polar regions, the Sun rises and sets each cycle, ' +
-      'giving roughly half a cycle of daylight and half of darkness.'
+      'Water ice has never been found below 70° of latitude, and Tycho is at 43°S - so ' +
+      'there is no reason to expect ice here at all.'
     ]
   },
 
@@ -191,8 +222,11 @@ var ZONES = [
 
     /* ---- REAL SCIENCE ---- */
     facts: [
-      'Orbital instruments such as NASA\'s Moon Mineralogy Mapper have detected water ice ' +
-      'in permanently shadowed areas at the lunar south pole, in craters including Haworth.',
+      'Tye et al. (2015) list Haworth as 51.4 km across, using crater counts around its rim ' +
+      'to work out how old it is.',
+      'Haworth is the first crater named in the southern ice detections reported by ' +
+      'Li et al. (2018), alongside Shoemaker, Sverdrup and Shackleton. Haworth and ' +
+      'Shoemaker may hold roughly 1-2% water ice by mass in their surface regolith.',
       'Ice matters because it is the one resource a lunar base could harvest on the Moon ' +
       'itself instead of shipping everything from Earth.',
       'The near-polar Sun stays low in the sky all day, so shadows are long and surface ' +
@@ -203,9 +237,9 @@ var ZONES = [
   {
     id: 'nobile',
     name: 'Nobile Crater',
-    coords: '85.2°S, 30°E',
-    lat: -85.2,
-    lon: 30,
+    coords: '85.3°S, 53.3°E',
+    lat: -85.28,
+    lon: 53.27,
 
     /* ---- GAME ESTIMATE ---- */
     difficulty: 1,
@@ -234,10 +268,12 @@ var ZONES = [
 
     /* ---- REAL SCIENCE ---- */
     facts: [
-      'Nobile is about 50 km across. Parts of its interior are unusually smooth and ' +
-      'carry far fewer craters than the surrounding surface.',
-      'That kind of unexpectedly young terrain is called "resurfaced", and it is ' +
-      'something the Apollo astronauts were specifically asked to photograph and sample.',
+      'The IAU Gazetteer lists Nobile as 79.27 km across, centred on 85.28°S, 53.27°E.',
+      'Nobile lies south of the crater Scott, along the western rim of Amundsen. Between ' +
+      'Nobile and the south pole sit the smaller craters Shoemaker and Faustini.',
+      'Nobile is not in the list of southern craters where NASA\'s M3 instrument found water ' +
+      'ice exposed at the surface. Close to the pole is not the same as confirmed - only about ' +
+      '3.5% of cold traps at both poles showed any ice signature at all.',
       'Smooth, even ground is exactly what a landing site needs, which is why real ' +
       'mission planners look for it.'
     ]
@@ -245,10 +281,10 @@ var ZONES = [
 
   {
     id: 'sylvester',
-    name: 'Sylvester N',
-    coords: '81.7°S, 55°E',
-    lat: -81.7,
-    lon: 55,
+    name: 'Sylvester Crater',
+    coords: '82.6°S, 81.2°W',
+    lat: -82.65,
+    lon: -81.22,
 
     /* ---- GAME ESTIMATE ---- */
     difficulty: 2,
@@ -276,11 +312,13 @@ var ZONES = [
 
     /* ---- REAL SCIENCE ---- */
     facts: [
-      'Sylvester N is one of the larger craters in the lunar south polar region.',
+      'The IAU Gazetteer lists Sylvester as 59.28 km across, centred on 82.65°S, 81.22°W.',
+      'Careful: the similarly named "Sylvester N" is a feature in the NORTHERN hemisphere, ' +
+      'at 82.4°N. It has never been a south polar candidate.',
       'At high southern latitude the low Sun means surface temperatures swing violently ' +
       'between day and night, which is a real engineering problem for any base.',
-      'Several south polar craters of this size are known to contain permanently shadowed ' +
-      'areas where ice has been detected.'
+      'Sylvester is not among the southern craters where M3 found surface ice. A neighbour, ' +
+      'Sverdrup, is - but those are two different craters.'
     ]
   }
 ];
@@ -289,10 +327,25 @@ var ZONES = [
    LOOKUPS AND DEFAULTS
    ------------------------------------------------------------ */
 
-/* id -> zone, so a saved id can be resolved without walking the list. */
+/* id -> zone, so a saved id can be resolved without walking the list.
+
+   A hole in the array is skipped rather than thrown on. sites.js is
+   hand-edited, and a stray comma is valid JavaScript that produces a
+   perfectly loadable file with an undefined entry in it - which then
+   breaks every screen that walks ZONES. Skipping it here turns that
+   into one obviously missing site instead of a broken map. */
 var ZONE_INDEX = {};
 for (var zi = 0; zi < ZONES.length; zi++) {
-  ZONE_INDEX[ZONES[zi].id] = ZONES[zi];
+  if (ZONES[zi] && ZONES[zi].id) {
+    ZONE_INDEX[ZONES[zi].id] = ZONES[zi];
+  }
+}
+
+/* The zones that are actually usable, in map order. Everything that
+   draws or lists sites walks this instead of the raw array. */
+var ZONE_LIST = [];
+for (var zl = 0; zl < ZONES.length; zl++) {
+  if (ZONES[zl] && ZONES[zl].id) { ZONE_LIST.push(ZONES[zl]); }
 }
 
 function zoneById(id) {

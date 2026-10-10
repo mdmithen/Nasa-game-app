@@ -269,6 +269,12 @@
 
     <div class="map-view">
       <canvas id="map-canvas" aria-label="Map of the lunar south pole with selectable landing sites"></canvas>
+
+      <!-- Phase 4: the whole-hemisphere view is the honest default, but
+           Shackleton really is only 20.9 km across while Cabeus is
+           100.58 km, so zooming in is what makes the real craters
+           readable. The dashed rings on the map are those real sizes. -->
+      <div id="map-zoom" class="map-zoom" role="group" aria-label="Map zoom"></div>
     </div>
 
     <div class="map-side">
@@ -354,6 +360,10 @@
             <span class="objective-label">Current Objective</span>
             <p id="current-objective" class="objective-text">&mdash;</p>
           </div>
+          <!-- Phase 5: sits directly under the current objective, and
+               above the full list, because an open challenge is
+               something to do NOW and a long objective list is not. -->
+          <div id="challenge-panel" class="challenge-panel" hidden></div>
           <ul id="objective-list" class="objective-list"></ul>
           <p class="disclaimer">
             <strong>Simulated game values.</strong> Simplified teaching numbers for this
@@ -435,6 +445,7 @@
     </div>
 
     <div class="build-side">
+      <div id="build-checklist" class="build-checklist"></div>
       <div id="build-cargo" class="build-cargo"></div>
       <div id="build-summary" class="build-summary"></div>
       <div id="build-actions" class="build-actions"></div>
@@ -488,6 +499,10 @@
         <span class="rm-value" id="r-objectives">&mdash;</span>
       </div>
       <div class="result-card-mini">
+        <span class="rm-label">Challenges</span>
+        <span class="rm-value" id="r-challenges">&mdash;</span>
+      </div>
+      <div class="result-card-mini">
         <span class="rm-label">Good Decisions</span>
         <span class="rm-value" id="r-decisions">&mdash;</span>
       </div>
@@ -496,8 +511,23 @@
     <h3 class="result-section">Remaining Resources</h3>
     <div id="result-resources" class="result-resources"></div>
 
-    <h3 class="result-section">Completed Objectives</h3>
+    <h3 class="result-section">Objectives</h3>
+    <p class="result-subhead">
+      <strong>Required</strong> objectives decide whether the mission succeeds.
+      <strong>Optional</strong> ones only add to the score. Every point is counted once
+      and once only.
+    </p>
     <ul id="result-objectives" class="objective-list"></ul>
+
+    <h3 class="result-section">Challenges &amp; Repairs</h3>
+    <ul id="result-challenges" class="challenge-history"></ul>
+
+    <h3 class="result-section">Achievements</h3>
+    <p class="result-subhead">
+      Badges only. An achievement never adds points, never rescues a failed mission and
+      never excuses running past the 16 day limit.
+    </p>
+    <div id="result-achievements" class="achievement-grid"></div>
 
     <h3 class="result-section">Performance Report</h3>
     <p id="result-report" class="result-report"></p>
@@ -520,7 +550,16 @@
 
 <script src="sprites.js"></script>
 <script src="sites.js"></script>
+<script src="lunar-data.js"></script>
 <script src="map.js"></script>
+<!-- mission.js loads before script.js because script.js reads the
+     Phase 3 state it creates while the page is still loading. It only
+     calls into script.js at runtime, never at load. -->
+<script src="mission.js"></script>
+<!-- challenges.js holds Phase 5's challenges and achievements. Like
+     mission.js it only calls into script.js at runtime, and script.js
+     reads its state while the page is still loading. -->
+<script src="challenges.js"></script>
 <script src="script.js"></script>
 <script src="world.js"></script>
 <script src="builder.js"></script>

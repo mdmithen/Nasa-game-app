@@ -24,8 +24,10 @@ var mapState = {
   loopHandle: null,
   lastTime: 0,
   t: 0,
+  maxColat: 90,        // how far out the view reaches, in degrees from the pole
   hitAreas: [],         // filled in while drawing, used for clicking
-  labelAreas: []        // the label chips, which are the roomy targets
+  labelAreas: [],       // the label chips, which are the roomy targets
+  edgeAreas: []         // chevrons for sites that are outside the zoomed view
 };
 
 var mapCanvas = null;
@@ -50,13 +52,63 @@ function mapClamp(v, low, high) {
 /* ------------------------------------------------------------
    1. PROJECTION
    Latitude is negative in the south. `colat` is degrees away from
-   the south pole, so 0 at the pole and 90 at the equator. The disc
-   edge is the equator.
+   the south pole, so 0 at the pole and 90 at the equator.
+
+   Phase 4 added `maxColat`, which is how far out the view reaches.
+   At 90 it is the whole hemisphere from the pole, which is what the
+   map always used to draw. Zooming in to 20 or 45 degrees is what
+   makes the real craters big enough to see: Shackleton is 20.9 km
+   across and Cabeus is 100.58 km, and on a whole-hemisphere view
+   both are a handful of pixels. Drawing them to scale is honest but
+   useless without a way to zoom.
    ------------------------------------------------------------ */
 
+/* The Moon's mean radius. Used only to turn an angle into kilometres
+   so the scale bar and the crater rings are real distances. */
+var MOON_RADIUS_KM = 1737.4;
+
+var MAP_ZOOMS = [
+  { colat: 90, label: 'Whole hemisphere' },
+  { colat: 45, label: 'Outer polar region' },
+  { colat: 20, label: 'Inner polar region' }
+];
+
+function mapZoomIndex() {
+  for (var i = 0; i < MAP_ZOOMS.length; i++) {
+    if (MAP_ZOOMS[i].colat === mapState.maxColat) { return i; }
+  }
+  return 0;
+}
+
+/* How far out the current view reaches, in degrees from the pole. */
+function mapMaxColat() {
+  return (typeof mapState.maxColat === 'number') ? mapState.maxColat : 90;
+}
+
+/* Distance from the pole as a fraction of the disc, 0 at the pole and
+   1 at the edge of the current view. */
+function mapRho(lat) {
+  var edge = Math.tan(mapMaxColat() * Math.PI / 360);
+  if (edge <= 0) { return 0; }
+  return Math.tan((90 + lat) * Math.PI / 360) / edge;
+}
+
+/* Ground kilometres per screen pixel at this distance from the pole.
+
+   For this projection the un-normalised radius is tan(colat/2), and the
+   ground distance out to it is 2R*atan(that). The map normalises the
+   radius by the current view, so `k` is the factor the view divided
+   the projection by - and the whole point of that factor is that
+   zooming in genuinely makes the map cover fewer kilometres. Leaving
+   it out made the scale bar lie at every zoom level except one. */
+function mapKmPerPx(rho, radiusPx) {
+  if (radiusPx <= 0) { return Infinity; }
+  var k = Math.tan(mapMaxColat() * Math.PI / 360);
+  return (2 * MOON_RADIUS_KM * k) / ((1 + k * k * rho * rho) * radiusPx);
+}
+
 function projectLatLon(lat, lon, cx, cy, radius) {
-  var colat = 90 + lat;
-  var rho = Math.tan(colat * Math.PI / 360);      /* 0 at the pole, 1 at the equator */
+  var rho = mapRho(lat);
   var a = lon * Math.PI / 180;
   return {
     x: cx + rho * radius * Math.sin(a),
@@ -164,11 +216,106 @@ function drawMap(time) {
 
   drawDisc(ctx, d);
   drawGraticule(ctx, d);
+  drawCraterRings(ctx, d);
   drawPoleMarker(ctx, d, time);
 
   drawZoneDots(ctx, d, time);
   drawZoneLabels(ctx, d);
+  drawEdgeMarkers(ctx, d);
   drawLegend(ctx, d);
+  drawScaleBar(ctx, d);
+}
+
+/* Phase 4: the real craters, drawn at their published size.
+
+   Shackleton is 20.9 km across and Cabeus is 100.58 km, and the ring
+   is the crater's actual diameter on the actual Moon, not a decorative
+   circle. On the whole-hemisphere view both are only a few pixels
+   across, which is itself the point - which is why there is a zoom. */
+function drawCraterRings(ctx, d) {
+  if (typeof ZONE_LIST === 'undefined' || typeof lunarSiteData !== 'function') { return; }
+
+  var maxRho = 1;
+
+  for (var i = 0; i < ZONE_LIST.length; i++) {
+    var data = lunarSiteData(ZONE_LIST[i].id);
+    if (!data || !data.crater || typeof data.crater.diameterKm !== 'number') { continue; }
+
+    /* Draw the ring at the published crater centre when there is one.
+       Where there is not, draw it at the landing site instead and say
+       so, rather than inventing a position. */
+    var centred = typeof data.crater.centerLat === 'number';
+    var lat = centred ? data.crater.centerLat : ZONE_LIST[i].lat;
+    var lon = centred ? data.crater.centerLon : ZONE_LIST[i].lon;
+    var p = projectLatLon(lat, lon, d.cx, d.cy, d.r);
+
+    var off = Math.sqrt((p.x - d.cx) * (p.x - d.cx) + (p.y - d.cy) * (p.y - d.cy));
+    if (off > d.r * 1.25) { continue; }
+
+    var rho = mapRho(lat);
+    var kmPerPx = mapKmPerPx(rho, d.r);
+    var rPx = (data.crater.diameterKm / 2) / kmPerPx;
+    if (!isFinite(rPx) || rPx <= 0) { continue; }
+
+    var isSelected = mapState.selected === ZONE_LIST[i].id;
+    var tint = isSelected ? 'rgba(255,209,102,0.55)' : 'rgba(150,205,255,0.38)';
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, rPx, 0, Math.PI * 2);
+    ctx.fillStyle = isSelected ? 'rgba(255,209,102,0.10)' : 'rgba(120,180,255,0.07)';
+    ctx.fill();
+    ctx.strokeStyle = tint;
+    ctx.lineWidth = isSelected ? 2 : 1;
+    ctx.setLineDash([5, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    /* Only label the ring when it is big enough to carry text, so the
+       map never turns into a pile of overlapping labels. */
+    if (rPx > 26) {
+      ctx.font = 'bold 10px "Segoe UI", sans-serif';
+      ctx.fillStyle = isSelected ? 'rgba(255,225,160,0.95)' : 'rgba(180,215,255,0.85)';
+      ctx.textAlign = 'center';
+      ctx.fillText(data.crater.diameterKm + ' km', p.x, p.y - rPx - 5);
+    }
+    ctx.restore();
+  }
+}
+
+/* A scale bar in real kilometres. Without the zoom control a reader
+   cannot tell how big anything is; with it, they can. */
+function drawScaleBar(ctx, d) {
+  var kmPerPx = mapKmPerPx(0, d.r);
+  if (!isFinite(kmPerPx) || kmPerPx <= 0) { return; }
+
+  /* pick a round distance that lands between 60 and 160 pixels */
+  var candidates = [10, 25, 50, 100, 200, 500, 1000, 2000];
+  var km = candidates[candidates.length - 1];
+  for (var i = 0; i < candidates.length; i++) {
+    if (candidates[i] / kmPerPx > 150) { break; }
+    km = candidates[i];
+  }
+
+  var w = km / kmPerPx;
+  if (!isFinite(w) || w < 10 || w > d.r * 0.8) { return; }
+
+  var x = d.cx - w / 2;
+  var y = d.cy + d.r - 16;
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(226,240,255,0.75)';
+  ctx.fillStyle = 'rgba(226,240,255,0.75)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x, y); ctx.lineTo(x + w, y);
+  ctx.moveTo(x, y - 4); ctx.lineTo(x, y + 4);
+  ctx.moveTo(x + w, y - 4); ctx.lineTo(x + w, y + 4);
+  ctx.stroke();
+  ctx.font = '10px "Segoe UI", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(km + ' km', x + w / 2, y - 7);
+  ctx.restore();
 }
 
 /* The Moon itself, lit from the top left like every other light
@@ -230,11 +377,14 @@ function drawGraticule(ctx, d) {
   ctx.fillStyle = 'rgba(35,48,82,0.75)';
 
   for (var i = 0; i < rings.length; i++) {
-    var p = projectLatLon(rings[i].lat, 0, d.cx, d.cy, d.r);
+    var rr = mapRho(rings[i].lat) * d.r;
+    /* only draw a ring that fits inside the current view, and label it
+       on the right-hand side so it cannot sit under the pole marker */
+    if (rr > d.r - 6 || rr < 12) { continue; }
     ctx.beginPath();
-    ctx.arc(d.cx, d.cy, Math.abs(p.y - d.cy), 0, Math.PI * 2);
+    ctx.arc(d.cx, d.cy, rr, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.fillText(rings[i].label, d.cx + 4, Math.abs(p.y - d.cy) + d.cy - 4);
+    ctx.fillText(rings[i].label, d.cx + 4, d.cy + rr - 4);
   }
 
   /* prime meridian */
@@ -271,17 +421,21 @@ function drawPoleMarker(ctx, d, time) {
 function drawZoneDots(ctx, d, time) {
   mapState.hitAreas = [];
 
-  for (var i = 0; i < ZONES.length; i++) {
-    var zone = ZONES[i];
+  for (var i = 0; i < ZONE_LIST.length; i++) {
+    var zone = ZONE_LIST[i];
     var p = projectLatLon(zone.lat, zone.lon, d.cx, d.cy, d.r);
     var isSelected = mapState.selected === zone.id;
     var isCompared = mapState.compare.indexOf(zone.id) >= 0;
 
-    /* only let a hit area fall near the disc, so an off-disc marker
-       cannot be picked up through the panel behind it */
     var off = Math.sqrt((p.x - d.cx) * (p.x - d.cx) + (p.y - d.cy) * (p.y - d.cy));
+
+    /* When the view is zoomed in, a site further out than the edge is
+       not drawn at all here - it gets a chevron on the rim instead, so
+       it can still be selected. */
     if (off < d.r - 4) {
       mapState.hitAreas.push({ id: zone.id, x: p.x, y: p.y });
+    } else {
+      continue;
     }
 
     var pulse = 0.5 + 0.5 * Math.sin(time / 700 + zone.lat);
@@ -314,10 +468,59 @@ function drawZoneDots(ctx, d, time) {
   }
 }
 
+/* A small chevron on the rim for every site outside the current view,
+   pointing the way it lies. It is a real button: clicking it selects
+   the site, so zooming in can never make a site unreachable. */
+function drawEdgeMarkers(ctx, d) {
+  mapState.edgeAreas = [];
+
+  for (var i = 0; i < ZONE_LIST.length; i++) {
+    var zone = ZONE_LIST[i];
+    var rho = mapRho(zone.lat);
+    if (rho <= 1.02) { continue; }
+
+    var p = projectLatLon(zone.lat, zone.lon, d.cx, d.cy, d.r);
+    var dx = p.x - d.cx;
+    var dy = p.y - d.cy;
+    var len = Math.sqrt(dx * dx + dy * dy) || 1;
+    var ux = dx / len;
+    var uy = dy / len;
+    var edge = d.r - 11;
+
+    var ex = d.cx + ux * edge;
+    var ey = d.cy + uy * edge;
+    var ang = Math.atan2(uy, ux);
+
+    var isSelected = mapState.selected === zone.id;
+
+    /* the chevron is drawn in unrotated space and then turned to face
+       outward, so the arrow head always points the right way */
+    var w = 13, h = 9;
+    ctx.save();
+    ctx.translate(ex, ey);
+    ctx.rotate(ang);
+    ctx.beginPath();
+    ctx.moveTo(w / 2, 0);
+    ctx.lineTo(-w / 2, -h / 2);
+    ctx.lineTo(-w / 2 + 4, 0);
+    ctx.lineTo(-w / 2, h / 2);
+    ctx.closePath();
+    ctx.fillStyle = isSelected ? '#ffd166' : 'rgba(190,210,245,0.75)';
+    ctx.fill();
+    ctx.strokeStyle = '#0b1226';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+
+    /* a bigger, square hit target, because this is a small thing to tap */
+    mapState.edgeAreas.push({ id: zone.id, x: ex, y: ey, w: 34, h: 30 });
+  }
+}
+
 /* Labels on a ring, ordered by their true bearing so the map still
    reads as geography rather than a random wheel. */
 function drawZoneLabels(ctx, d) {
-  var order = ZONES.slice().sort(function (a, b) { return bearingOf(a, d) - bearingOf(b, d); });
+  var order = ZONE_LIST.slice().sort(function (a, b) { return bearingOf(a, d) - bearingOf(b, d); });
   var ringR = d.r * 0.74;
   var step = (Math.PI * 2) / order.length;
 
@@ -325,6 +528,11 @@ function drawZoneLabels(ctx, d) {
 
   for (var i = 0; i < order.length; i++) {
     var zone = order[i];
+
+    /* a site outside the current view gets a rim chevron instead, and
+       is left out of the ring so the two never contradict each other */
+    if (mapRho(zone.lat) > 1.02) { continue; }
+
     var p = projectLatLon(zone.lat, zone.lon, d.cx, d.cy, d.r);
     var isSelected = mapState.selected === zone.id;
     var isCompared = mapState.compare.indexOf(zone.id) >= 0;
@@ -390,6 +598,15 @@ function drawLegend(ctx, d) {
   ctx.textAlign = 'center';
   ctx.fillText('South polar view  ·  markers sit at their real coordinates',
                d.cx, d.cy + d.r + 15);
+
+  /* the crater rings are real data, so say so and name the source */
+  if (typeof lunarSource === 'function') {
+    var src = lunarSource('tye2015') || lunarSource('gazetteer');
+    ctx.font = '9px "Segoe UI", sans-serif';
+    ctx.fillStyle = 'rgba(20,32,62,0.7)';
+    ctx.fillText('Dashed rings: real craters, to scale  ·  ' +
+                 (src ? src.short : 'IAU Gazetteer'), d.cx, d.cy + d.r + 27);
+  }
   ctx.restore();
 }
 
@@ -405,6 +622,17 @@ function mapHitTest(x, y) {
       var a = mapState.labelAreas[l];
       if (Math.abs(x - a.x) <= a.w / 2 && Math.abs(y - a.y) <= a.h / 2) {
         return a.id;
+      }
+    }
+  }
+
+  /* then the rim chevrons, so a site outside the zoom is still a
+     one-click choice rather than something you have to find in a list */
+  if (mapState.edgeAreas) {
+    for (var e = 0; e < mapState.edgeAreas.length; e++) {
+      var c = mapState.edgeAreas[e];
+      if (Math.abs(x - c.x) <= c.w / 2 && Math.abs(y - c.y) <= c.h / 2) {
+        return c.id;
       }
     }
   }
@@ -426,6 +654,21 @@ function mapHitTest(x, y) {
 
 function selectZone(id) {
   mapState.selected = id;
+  renderMapPanel();
+}
+
+/* Change how far out the map looks. The selection, the comparison pins
+   and the marker layout all survive, and every site stays reachable
+   through its rim chevron. */
+function setMapZoom(colat) {
+  for (var i = 0; i < MAP_ZOOMS.length; i++) {
+    if (MAP_ZOOMS[i].colat === colat) {
+      mapState.maxColat = colat;
+      break;
+    }
+  }
+  if (!mapW || !mapH) { return; }
+  if (mapReduceMotion) { drawMap(0); } else { drawMap(mapState.t); }
   renderMapPanel();
 }
 
@@ -522,6 +765,31 @@ function multiplierRow(label, value, note) {
          (note ? '<p class="zone-meter-note">' + note + '</p>' : '');
 }
 
+/* The zoom buttons. The map is drawn to scale, and at the default
+   whole-hemisphere view a 20.9 km crater really is only a few pixels
+   across. Zooming is what makes the real data readable. */
+function renderMapZoom() {
+  var box = document.getElementById('map-zoom');
+  if (!box) { return; }
+
+  var html = '';
+  for (var i = 0; i < MAP_ZOOMS.length; i++) {
+    var z = MAP_ZOOMS[i];
+    var on = (z.colat === mapMaxColat());
+    html += '<button class="map-zoom-btn' + (on ? ' is-on' : '') +
+            '" type="button" data-colat="' + z.colat + '"' +
+            (on ? ' aria-current="true"' : '') + '>' + z.label + '</button>';
+  }
+  box.innerHTML = html;
+
+  var btns = box.querySelectorAll('.map-zoom-btn');
+  for (var b = 0; b < btns.length; b++) {
+    btns[b].addEventListener('click', function (e) {
+      setMapZoom(Number(e.currentTarget.getAttribute('data-colat')));
+    });
+  }
+}
+
 function renderMapPanel() {
   var panel = document.getElementById('zone-panel');
   var list = document.getElementById('zone-list');
@@ -531,8 +799,8 @@ function renderMapPanel() {
 
   /* ---- the list, always visible, always keyboard reachable ---- */
   var listHtml = '';
-  for (var i = 0; i < ZONES.length; i++) {
-    var z = ZONES[i];
+  for (var i = 0; i < ZONE_LIST.length; i++) {
+    var z = ZONE_LIST[i];
     var cls = 'zone-chip' + (mapState.selected === z.id ? ' is-selected' : '');
     listHtml +=
       '<button class="' + cls + '" type="button" data-zone="' + z.id + '">' +
@@ -585,6 +853,12 @@ function renderMapPanel() {
           '<span class="zone-score-value">' + zone.cargo + '</span></div>' +
       '</div>' +
 
+      /* ---- Phase 4: the measured record comes FIRST, above the
+         invented numbers, because that is the honest order. Real
+         data, then the photograph, then this game's estimates. ---- */
+      '<div class="zone-evidence">' + renderSiteScience(zone) + '</div>' +
+      '<div id="site-images" class="site-images"></div>' +
+
       '<div class="zone-meters">' +
         meter('Sunlight', zone.sunlight,
               'Share of the cycle with usable Sun. <strong>GAME ESTIMATE</strong>') +
@@ -597,6 +871,9 @@ function renderMapPanel() {
         meter('Heat management', zone.heat,
               'How hard the site is to keep warm. <strong>GAME ESTIMATE</strong>') +
       '</div>' +
+
+      '<h3 class="zone-meters-head">What this game makes of it ' +
+        '<span class="tag tag-game">GAME ESTIMATE</span></h3>' +
 
       '<div class="zone-cols">' +
         '<div class="zone-col"><h3 class="zone-pro">Advantages</h3><ul>' + prosHtml + '</ul></div>' +
@@ -620,7 +897,14 @@ function renderMapPanel() {
     if (cmpBtn) {
       cmpBtn.addEventListener('click', function () { toggleCompare(zone.id); });
     }
+
+    /* Phase 4: fetch a real photograph of the crater the player just
+       picked. Deliberately done after the panel is on screen, so a slow
+       or failing network never delays the map itself. */
+    if (typeof loadSiteImage === 'function') { loadSiteImage(zone); }
   }
+
+  renderMapZoom();
 
   /* ---- the comparison table ---- */
   if (!compareBox) { return; }
@@ -669,13 +953,191 @@ function renderMapPanel() {
 }
 
 /* ------------------------------------------------------------
+   6b. THE SITE SCIENCE PANEL
+   Phase 4. This is the panel that does the actual teaching, and it is
+   the reason the map can now say anything specific about a crater.
+
+   It is built in three blocks and the blocks are never mixed:
+
+     VERIFIED      a published number, with the source that reported it
+     INTERPRETED   a conclusion drawn from those numbers, marked as one
+     NOT AVAILABLE a measurement that genuinely exists but is not in
+                   this game, with a link to where it does exist
+
+   The last block is the important one. Elevation and slope for every
+   one of these sites is real, published NASA data - it is just a set
+   of 5 m/pixel GeoTIFF rasters that a browser cannot query for one
+   point. Saying so, and linking to it, teaches more than a made-up
+   number ever could.
+   ------------------------------------------------------------ */
+
+/* A tiny local escaper. The only untrusted strings reaching this
+   panel come from NASA's own API, but a broken response should never
+   be able to inject markup into the page. */
+function mapText(s) {
+  return String(s === undefined || s === null ? '' : s).replace(/[<>]/g, '');
+}
+
+function sourceLink(sourceId) {
+  var src = (typeof lunarSource === 'function') ? lunarSource(sourceId) : null;
+  if (!src) { return ''; }
+  return '<a class="ev-src" href="' + mapText(src.url) +
+         '" target="_blank" rel="noopener">' + mapText(src.short) + '</a>';
+}
+
+function evidenceRow(label, value, detail, sourceId, tier) {
+  var cls = 'ev-row is-' + (tier || 'verified');
+  return '<li class="' + cls + '">' +
+           '<span class="ev-label">' + label + '</span>' +
+           '<span class="ev-value">' + value + '</span>' +
+           (detail ? '<span class="ev-detail">' + detail + '</span>' : '') +
+           (sourceId ? '<span class="ev-cite">Source: ' + sourceLink(sourceId) + '</span>' : '') +
+         '</li>';
+}
+
+function renderSiteScience(zone) {
+  if (typeof lunarSiteData !== 'function') { return ''; }
+
+  var data = lunarSiteData(zone.id);
+  if (!data) { return ''; }
+
+  var verified = '';
+  var interpreted = '';
+  var missing = '';
+
+  /* ---- verified ---- */
+  if (data.crater) {
+    var centreNote = '';
+    if (typeof data.crater.centerLat === 'number') {
+      centreNote = 'Centred on ' + data.crater.centerLat + '°, ' + data.crater.centerLon + '°.' +
+        (data.crater.featureId ? ' IAU feature ' + data.crater.featureId + '.' : '');
+    } else {
+      centreNote = 'The published centre coordinates were not verified here, so the ring on ' +
+        'the map is drawn at the landing site rather than at the crater centre.';
+    }
+    verified += evidenceRow(
+      'Crater size',
+      data.crater.diameterKm + ' km',
+      data.crater.name + ' across. ' + centreNote,
+      data.crater.sourceId, 'verified');
+  }
+
+  if (data.illumination) {
+    if (typeof data.illumination.pct === 'number') {
+      verified += evidenceRow(
+        'Sunlight',
+        data.illumination.pct + '% of the lunar year',
+        data.illumination.note,
+        data.illumination.sourceId, 'verified');
+    } else {
+      /* No published figure for this exact spot. Saying "we do not have
+         a number for here" is the honest answer, and it is more
+         interesting than another invented percentage. */
+      missing += evidenceRow(
+        'Sunlight at this spot',
+        'Not published',
+        data.illumination.note + ' Illumination modelling has been done for specific polar ' +
+        'points, not for every crater, so no percentage is given here rather than a guess.',
+        'mazarico', 'missing');
+    }
+  }
+
+  if (data.ice) {
+    var badge = {
+      detected: 'Measured here',
+      cluster: 'Detected nearby',
+      'not-detected': 'None found',
+      'out-of-band': 'Too far from the pole'
+    }[data.ice.status] || 'Unknown';
+    verified += evidenceRow('Water ice', badge, data.ice.detail, data.ice.sourceId, 'verified');
+  }
+
+  /* ---- not available, but it exists ---- */
+  var lola = (typeof lunarSource === 'function') ? lunarSource('lolaDem') : null;
+  missing +=
+    evidenceRow('Elevation', 'Not in this game',
+      'Real elevation is published for this whole region as a 5 m/pixel digital elevation model ' +
+      'from the Lunar Orbiter Laser Altimeter. It is a large GeoTIFF product that a browser cannot ' +
+      'query for a single point, so no height is shown rather than an invented one.',
+      'lolaDem', 'missing') +
+    evidenceRow('Ground slope', 'Not in this game',
+      'The same LOLA dataset publishes slope maps in degrees. Same reason: available as a bulk ' +
+      'download, not as a number this page can honestly quote.',
+      'lolaDem', 'missing');
+
+  /* ---- interpretation ---- */
+  var rho = mapRho(zone.lat);
+  var distanceDeg = Math.round((90 + zone.lat) * 10) / 10;
+  if (data.ice && data.ice.status === 'out-of-band') {
+    interpreted += evidenceRow('Why there is no ice here',
+      distanceDeg + '° from the pole',
+      'Every water-ice detection reported so far sits within ' +
+      (typeof LUNAR_REGION !== 'undefined' ? LUNAR_REGION.iceLatitudeBandDeg : 20) +
+      '° of a pole, and none at all below ' +
+      (typeof LUNAR_REGION !== 'undefined' ? LUNAR_REGION.iceNoDetectionBelowDeg : 70) +
+      '°. This is a conclusion drawn from those results, not a measurement of this crater.',
+      'li2018', 'interpreted');
+  } else if (data.ice && data.ice.status === 'detected') {
+    interpreted += evidenceRow('What that means for a base',
+      'The only proven source on this map',
+      'A crater where ice has actually been measured is the one place a real base would plan to ' +
+      'mine. In this game it also lowers the number of structures the crew must log to sign off ' +
+      'the survey, from ' + surveyTargetText(false) + ' to ' + surveyTargetText(true) + '.',
+      'lcross', 'interpreted');
+  } else if (data.ice && data.ice.status === 'cluster') {
+    interpreted += evidenceRow('What that means for a base',
+      'Worth a sample, not a guarantee',
+      'Detections cluster near this crater but not inside it. ' +
+      (typeof LUNAR_REGION !== 'undefined' ?
+        'Only about ' + LUNAR_REGION.coldTrapIceSharePct + '% of cold traps at both poles showed any ice signature at all, ' +
+        'so a nearby detection is a reason to look here, not a promise of what you will find.' : ''),
+      'li2018', 'interpreted');
+  }
+
+  if (typeof LUNAR_REGION !== 'undefined') {
+    interpreted += evidenceRow('South polar shadow', 
+      LUNAR_REGION.shadowedAreaSouthKm2.toLocaleString() + ' km² in permanent shadow',
+      'That is the modelled total for the southern hemisphere, and it is why a crater floor can be ' +
+      'cold enough to hold ice while the rim above it is in near-continuous sunlight.',
+      'mazarico', 'interpreted');
+  }
+
+  function surveyTargetText(iceSite) {
+    if (typeof surveyTargetFor !== 'function') { return iceSite ? '3' : '4'; }
+    return String(surveyTargetFor(iceSite ? 'cabeus-b' : 'nobile'));
+  }
+
+  var html =
+    '<div class="ev-block">' +
+      '<h3 class="ev-head">Measured <span class="tag tag-fact">VERIFIED DATA</span></h3>' +
+      '<ul class="ev-list">' + verified + '</ul>' +
+    '</div>' +
+    '<div class="ev-block">' +
+      '<h3 class="ev-head">Reasoned from that data <span class="tag ev-tag-interpreted">INTERPRETATION</span></h3>' +
+      '<ul class="ev-list">' + interpreted + '</ul>' +
+    '</div>' +
+    '<div class="ev-block">' +
+      '<h3 class="ev-head">Real, but not in this game <span class="tag ev-tag-missing">NOT BUNDLED</span></h3>' +
+      '<ul class="ev-list">' + missing + '</ul>' +
+      (lola ? '<p class="ev-note">The real elevation and slope data: ' +
+              '<a href="' + mapText(lola.url) + '" target="_blank" rel="noopener">' +
+              mapText(lola.label) + '</a></p>' : '') +
+    '</div>';
+
+  return html;
+}
+
+/* ------------------------------------------------------------
    7. LEAVING THE MAP
    ------------------------------------------------------------ */
 
-/* Open the map from the welcome screen. */
+/* Open the map from the welcome screen. Always starts on the default
+   view, so a player who zoomed in to look at Cabeus does not come back
+   to a map that is still zoomed and cannot see where they are. */
 function openMap() {
   mapState.selected = null;
   mapState.compare = [];
+  mapState.maxColat = MAP_ZOOMS[0].colat;
   showScreen('map');
   mapShow();
 }

@@ -1916,6 +1916,12 @@ kbd {
   align-items: start;
 }
 
+/* The bar is laid out with `display: grid`, and an author rule beats
+   the browser's default for [hidden], so the attribute alone was not
+   enough to take it off screen. Without this the whole builder stayed
+   visible underneath the running mission. */
+.build-bar[hidden] { display: none; }
+
 .build-heading { font-size: 1.15rem; margin-bottom: 4px; }
 .build-lead { color: var(--grey); font-size: .84rem; margin-bottom: 14px; }
 .build-note { margin-top: 12px; }
@@ -1972,6 +1978,79 @@ kbd {
   color: var(--warn);
 }
 .build-item-have { display: block; font-size: .68rem; color: var(--grey); }
+
+/* ---- pre-flight checklist (Phase 3) ---- */
+
+.build-checklist {
+  background: rgba(10, 20, 48, .7);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+
+.checklist-head { font-size: .9rem; margin-bottom: 10px; }
+.check-group + .check-group { margin-top: 12px; }
+.check-group-head {
+  font-size: .74rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--cyan);
+  margin-bottom: 6px;
+}
+
+.check-list { list-style: none; margin: 0; padding: 0; }
+
+.check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: .76rem;
+  line-height: 1.3;
+}
+
+.check-mark {
+  flex: 0 0 16px;
+  width: 16px;
+  text-align: center;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.check-body { flex: 1 1 auto; min-width: 0; }
+.check-label { display: block; }
+.check-detail { display: block; color: var(--grey); font-size: .68rem; }
+
+.check-row.is-ok .check-mark { color: var(--good); }
+.check-row.is-ok .check-label { color: var(--white); }
+.check-row.is-warn .check-mark { color: var(--warn); }
+.check-row.is-warn .check-label { color: var(--warn); }
+.check-row.is-bad .check-mark { color: var(--bad); }
+.check-row.is-bad .check-label { color: #ffc4c4; }
+
+.check-explain { font-size: .66rem; color: var(--grey); margin: 6px 0 0; }
+
+.check-verdict {
+  font-size: .76rem;
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  border-radius: 7px;
+}
+
+.check-verdict.is-ok {
+  background: rgba(74, 222, 128, .12);
+  border-left: 2px solid var(--good);
+  color: var(--good);
+}
+
+.check-verdict.is-bad {
+  background: rgba(60, 10, 20, .55);
+  border-left: 2px solid var(--bad);
+  color: #ffc4c4;
+}
+
+.check-note { font-size: .64rem; color: var(--grey); margin: 10px 0 0; line-height: 1.5; }
 
 /* ---- cargo ---- */
 
@@ -2068,10 +2147,338 @@ kbd {
   .build-buttons .btn { flex: 1 1 auto; }
 }
 
+/* ============================================================
+   19. PHASE 4 - VERIFIED LUNAR DATA
+   The evidence panel on the site card, the zoom control on the map,
+   and the per-site NASA photograph. None of this is visible during a
+   mission.
+   ============================================================ */
+
+/* ---- map zoom ---- */
+
+.map-zoom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  padding: 8px 10px 2px;
+}
+
+.map-zoom-btn {
+  font: inherit;
+  font-size: .72rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(10, 20, 48, .8);
+  color: var(--grey);
+  cursor: pointer;
+  transition: border-color .16s, color .16s;
+}
+
+.map-zoom-btn:hover { border-color: var(--cyan-dim); color: var(--white); }
+.map-zoom-btn.is-on {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  background: rgba(79, 209, 224, .12);
+}
+
+/* ---- the three evidence blocks ---- */
+
+.zone-evidence { margin-top: 16px; }
+
+.zone-meters-head {
+  font-size: .8rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 18px 0 10px;
+}
+
+.ev-block {
+  background: rgba(10, 20, 48, .7);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.ev-head {
+  font-size: .78rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.ev-tag-interpreted { background: rgba(96, 165, 250, .18); color: #93c5fd; }
+.ev-tag-missing { background: rgba(148, 163, 184, .18); color: #b6c2d4; }
+
+.ev-list { list-style: none; margin: 0; padding: 0; }
+
+.ev-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  padding: 7px 0;
+  font-size: .78rem;
+  line-height: 1.4;
+}
+
+.ev-row + .ev-row { border-top: 1px solid rgba(120, 140, 180, .14); }
+
+.ev-label { font-weight: 700; color: var(--white); }
+.ev-value { color: var(--cyan); font-weight: 700; }
+.ev-detail { color: var(--grey); font-size: .72rem; }
+.ev-cite { font-size: .68rem; color: var(--grey); }
+
+.ev-src { color: var(--cyan-dim); }
+
+.ev-row.is-missing .ev-value { color: #b6c2d4; }
+.ev-row.is-interpreted .ev-value { color: #93c5fd; }
+
+.ev-note { font-size: .68rem; color: var(--grey); margin: 8px 0 0; line-height: 1.5; }
+.ev-note a { color: var(--cyan-dim); }
+
+/* ---- per-site NASA photograph ---- */
+
+.site-images { margin-top: 14px; }
+
+.site-images-head {
+  font-size: .78rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.site-images-status {
+  font-size: .72rem;
+  color: var(--grey);
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--line);
+  line-height: 1.5;
+}
+
+.site-images-status.is-empty { border-style: dotted; }
+.site-images-status.is-error {
+  color: #ffc4c4;
+  border-color: rgba(251, 113, 133, .4);
+  background: rgba(60, 10, 20, .4);
+}
+
+.nasa-item-featured {
+  border-color: var(--cyan-dim) !important;
+  box-shadow: 0 0 0 1px rgba(79, 209, 224, .18);
+}
+
+.n-credit {
+  display: block;
+  font-size: .66rem;
+  color: var(--grey);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+/* ============================================================
+   20. PHASE 5 - CHALLENGES AND ACHIEVEMENTS
+   Kept deliberately quiet. The HUD already has a lot on it, so the
+   challenge strip only exists when something is actually open, and
+   nothing here animates on its own.
+   ============================================================ */
+
+/* ---- the HUD challenge strip ---- */
+
+.challenge-panel {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.challenge-panel[hidden] { display: none; }
+
+.hud-challenge {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 209, 102, .10);
+  border: 1px solid rgba(255, 209, 102, .35);
+}
+
+.hud-challenge.is-urgent {
+  background: rgba(251, 113, 133, .12);
+  border-color: rgba(251, 113, 133, .5);
+}
+
+.hc-icon { flex: 0 0 auto; font-size: 1rem; line-height: 1.2; }
+.hc-body { min-width: 0; }
+.hc-title { display: block; font-size: .76rem; font-weight: 700; color: var(--white); }
+.hc-where { display: block; font-size: .66rem; color: var(--warn); }
+.hud-challenge.is-urgent .hc-where { color: #ffc4c4; }
+
+/* ---- the challenge card in the station panel ---- */
+
+.challenge-card {
+  margin: 0 0 12px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 209, 102, .07);
+  border: 1px solid rgba(255, 209, 102, .35);
+}
+
+.challenge-kind {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .62rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--warn);
+  margin-bottom: 4px;
+}
+
+.challenge-icon { font-size: .9rem; }
+.challenge-day { margin-left: auto; color: var(--grey); letter-spacing: 0; text-transform: none; }
+
+.challenge-title { font-size: .95rem; margin-bottom: 6px; }
+.challenge-brief { font-size: .78rem; color: var(--white); margin-bottom: 6px; line-height: 1.45; }
+
+.challenge-goal {
+  font-size: .72rem;
+  color: var(--cyan);
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+.challenge-deadline { font-size: .72rem; color: var(--warn); margin-bottom: 6px; }
+
+.challenge-science {
+  font-size: .7rem;
+  color: var(--grey);
+  line-height: 1.5;
+  margin-bottom: 6px;
+  padding-left: 8px;
+  border-left: 2px solid rgba(120, 140, 180, .35);
+}
+
+.challenge-science strong { color: var(--grey); }
+
+.challenge-note { font-size: .64rem; color: var(--grey); margin-bottom: 8px; }
+
+.challenge-option { margin-bottom: 6px; }
+.challenge-option:last-child { margin-bottom: 0; }
+
+/* ---- objectives: required vs optional ---- */
+
+.objective-list .obj-kind {
+  float: right;
+  font-size: .6rem;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--grey);
+  margin-left: 8px;
+}
+
+.objective-list .is-primary .obj-kind { color: var(--cyan-dim); }
+
+.obj-progress {
+  color: var(--cyan);
+  font-weight: 700;
+  font-size: .82em;
+  margin-left: 4px;
+}
+
+.objective-list .is-unavailable { opacity: .5; }
+.obj-optional { color: var(--grey); font-style: normal; font-size: .82em; }
+
+/* ---- results: challenge history ---- */
+
+.challenge-history { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+
+.ch-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: rgba(10, 20, 48, .6);
+}
+
+.ch-entry.is-done { border-color: rgba(74, 222, 128, .4); }
+.ch-entry.is-partial { border-color: rgba(255, 209, 102, .4); }
+.ch-entry.is-failed, .ch-entry.is-expired { border-color: rgba(251, 113, 133, .4); }
+.ch-entry.is-missed { border-color: rgba(251, 113, 133, .28); }
+.ch-entry.is-unmet, .ch-entry.ch-summary { opacity: .65; }
+
+.ch-icon { flex: 0 0 auto; font-size: 1.05rem; line-height: 1.3; }
+.ch-body { min-width: 0; }
+.ch-title { display: block; font-size: .82rem; font-weight: 700; color: var(--white); }
+.ch-outcome { display: block; font-size: .74rem; color: var(--cyan); }
+.ch-note { display: block; font-size: .7rem; color: var(--grey); margin-top: 3px; line-height: 1.5; }
+/* The totals row has no icon, so it needs the same inset as the rows
+   that do, and an explicit border colour: inheriting `--line` here
+   rendered a thick dashed outline that shouted louder than the
+   challenges it was summarising. */
+.ch-summary {
+  border-style: dashed;
+  border-color: rgba(120, 140, 180, .4);
+  padding-left: 14px;
+}
+
+/* ---- results: achievements ---- */
+
+.ach-summary { font-size: .74rem; color: var(--grey); margin-bottom: 10px; }
+
+.achievement-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
+}
+
+.achievement {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: rgba(10, 20, 48, .6);
+}
+
+.achievement.is-earned { border-color: rgba(255, 209, 102, .45); }
+.achievement.is-locked { opacity: .5; }
+
+.ach-icon { flex: 0 0 auto; font-size: 1rem; line-height: 1.3; }
+.ach-body { flex: 1 1 auto; min-width: 0; }
+.ach-name { display: block; font-size: .78rem; font-weight: 700; color: var(--white); }
+.ach-blurb { display: block; font-size: .68rem; color: var(--grey); line-height: 1.4; }
+.ach-state { flex: 0 0 auto; font-size: .62rem; color: var(--warn); white-space: nowrap; }
+
+.result-subhead { font-size: .74rem; color: var(--grey); margin-bottom: 8px; line-height: 1.5; }
+
+@media (max-width: 560px) {
+  .achievement-grid { grid-template-columns: 1fr; }
+  .objective-list .obj-kind { float: none; display: block; margin-left: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-challenge, .ch-entry, .achievement { transition: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* the map draws one still frame, and the builder must not hover-lift */
   .zone-chip { transition: none; }
   .zone-chip:hover { transform: none; }
   .build-item { transition: none; }
   .build-item:hover:not(:disabled) { transform: none; }
+  .map-zoom-btn { transition: none; }
 }
+
+

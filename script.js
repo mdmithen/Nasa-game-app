@@ -41,17 +41,62 @@ var RESOURCES = {
 
 /* ------------------------------------------------------------
    SECTION 3: MISSION OBJECTIVES
-   All six must be complete for the mission to be a success.
+   All of them must be complete for the mission to be a success.
+
+   The first six are the original repair-and-survive list. The last
+   two were added in Phase 3 and are the science tasks: they are not
+   decided by picking an option in a panel, they are earned by walking
+   the base and looking at it.
+
+   Scoring still totals 100. See calculateScore.
+
+   PHASE 5 SPLITS THEM
+   -------------------
+   Every objective now says whether it is PRIMARY or OPTIONAL.
+
+     primary    the mission. All of them must be done to fly home,
+                and `obj-return` is the launch itself.
+     optional   things that make a mission better without being
+                required. Missing one costs points in the objective
+                band, but it does not stop the crew coming home.
+
+   Phase 5 adds four more optional objectives, defined in
+   challenges.js because they depend on the challenges, the base and
+   the landing site. `allObjectives()` is the single list every screen
+   and the scorer read, so nothing can drift out of step.
    ------------------------------------------------------------ */
 
 var OBJECTIVES = [
-  { id: 'obj-power',  text: 'Restore full solar power to the base' },
-  { id: 'obj-water',  text: 'Restart the water recycling loop' },
-  { id: 'obj-food',   text: 'Get the hydroponics bay producing again' },
-  { id: 'obj-air',    text: 'Repair the CO2 scrubber' },
-  { id: 'obj-storm',  text: 'Ride out the lunar dust storm safely' },
-  { id: 'obj-return', text: 'Return the crew safely to Earth' }
+  { id: 'obj-power',   text: 'Restore full solar power to the base', primary: true },
+  { id: 'obj-water',   text: 'Restart the water recycling loop', primary: true },
+  { id: 'obj-food',    text: 'Get the hydroponics bay producing again', primary: true },
+  { id: 'obj-air',     text: 'Repair the CO2 scrubber', primary: true },
+  { id: 'obj-storm',   text: 'Ride out the lunar dust storm safely', primary: true },
+  { id: 'obj-explore', text: 'Collect 6 supply canisters from across the surface', primary: false,
+    progress: function () { return game.explored; }, target: 6 },
+  { id: 'obj-survey',  text: 'Inspect 4 different structures and log them at the console', primary: false,
+    progress: function () { return Object.keys(game.surveyed || {}).length; },
+    /* The survey target depends on the site: a crater where ice was
+       actually measured is a better place to do science, so fewer
+       readouts are needed there. See surveyTargetFor(). */
+    target: function () {
+      return (typeof missionSurveyTarget === 'function') ? missionSurveyTarget() : 4;
+    } },
+  { id: 'obj-return',  text: 'Return the crew safely to Earth', primary: true }
 ];
+
+/* The primary and optional objective lists, read from one place. */
+function allObjectives() {
+  var out = [];
+  var i;
+  for (i = 0; i < OBJECTIVES.length; i++) { out.push(OBJECTIVES[i]); }
+  if (typeof PHASE5_OBJECTIVES !== 'undefined') {
+    for (i = 0; i < PHASE5_OBJECTIVES.length; i++) { out.push(PHASE5_OBJECTIVES[i]); }
+  }
+  return out;
+}
+
+function isPrimary(obj) { return obj.primary === true; }
 
 /* ------------------------------------------------------------
    SECTION 4: THE MISSION EVENTS
@@ -566,6 +611,263 @@ var EVENTS = {
         lesson: 'Finishing the job is not always better than going home safe. Know your margin.'
       }
     ]
+  },
+
+  /* ============================================================
+     PHASE 3: EMERGENENCY EVENTS
+     These are not on the schedule. They only happen when a system has
+     actually worn past the point of no return, which is what the
+     maintenance model in mission.js is for. A base kept in good order
+     by a supply depot and a few service visits never sees one of these.
+
+     Every one of them offers the same three shapes of answer, because
+     the choice is always the same: fix the cause, buy time, or cut
+     something else to pay for it.
+     ============================================================ */
+
+  'fail-solar': {
+    kind: 'Life Support Emergency',
+    title: 'The Solar Array Has Failed',
+    story: 'Dust has been grinding into the panel edges for days and the array has dropped below the level the base needs. ' +
+           'The batteries are carrying the whole base on their own, and they will not do it for long. Something has to change today.',
+    options: [
+      {
+        label: 'Strip, clean and re-align the whole array',
+        hint: 'Costs a day of power and water, but the array comes back.',
+        deltas: [
+          { key: 'power', amount: -9, note: 'Array stripped and cleaned' },
+          { key: 'water', amount: -5, note: 'Cleaning solvent' }
+        ],
+        mods: { solarFactor: 1 },
+        restores: 'solar',
+        completes: 'obj-power',
+        tone: 'good',
+        heading: 'Array Back at Full Output',
+        story: 'The crew worked along the panels with brushes and solvent and cleared dust that had been building for weeks. Output came straight back up.',
+        lesson: 'Preventive cleaning is cheap. Replacing a collapsed array is not.'
+      },
+      {
+        label: 'Run the base on batteries and save the panels',
+        hint: 'No repair today. The batteries will not last the mission.',
+        deltas: [
+          { key: 'power', amount: 6, note: 'Panels switched off, batteries eased' }
+        ],
+        restores: 'solar',
+        tone: 'warn',
+        heading: 'Running on Stored Power',
+        story: 'The panels were left alone and the base ran off the batteries. The array was cleaned in the end, but for a while the crew were living on what they had already made.',
+        lesson: 'Postponing maintenance does not remove the cost, it just moves the bill to a worse time.'
+      },
+      {
+        label: 'Shut down everything non-essential to protect the air',
+        hint: 'Saves power, but the crew lose heat and the crops suffer.',
+        deltas: [
+          { key: 'power', amount: 4, note: 'Non-essential systems off' },
+          { key: 'health', amount: -5, note: 'Crew working in a cold base' },
+          { key: 'food', amount: -8, note: 'Grow lights cut back' }
+        ],
+        tone: 'bad',
+        heading: 'Rationing Power',
+        story: 'The base went cold to keep the air scrubbers running. The crew worked in shift bags and the crop got less light than it needed.',
+        lesson: 'Power problems spread sideways. Anything you switch off to save power is usually something else that needed it.'
+      }
+    ]
+  },
+
+  'fail-oxygen': {
+    kind: 'Life Support Emergency',
+    title: 'The Oxygen Scrubber Has Stopped',
+    story: 'The scrubber cartridge is spent and the replacement never made it into the base. Carbon dioxide is climbing in the cabin and the crew have headaches. ' +
+           'Without this running, the oxygen store only falls from here.',
+    options: [
+      {
+        label: 'Rebuild the scrubber from the spare cartridges',
+        hint: 'Costs power today. The cabin is breathable again.',
+        deltas: [
+          { key: 'power', amount: -12, note: 'Scrubber rebuilt' },
+          { key: 'oxygen', amount: 10, note: 'Cabin air cleaned' }
+        ],
+        mods: { oxygenProduction: 5 },
+        restores: 'oxygen',
+        completes: 'obj-air',
+        tone: 'good',
+        heading: 'Scrubber Running',
+        story: 'The crew stacked every spare cartridge they had and built a new scrubber. The cabin readings came down within the hour.',
+        lesson: 'Air is the one system you never get to decide about later.'
+      },
+      {
+        label: 'Vent some of the cabin air and top it up',
+        hint: 'Quick, and it costs stored oxygen.',
+        deltas: [
+          { key: 'oxygen', amount: 18, note: 'Cabin partly vented' },
+          { key: 'health', amount: -6, note: 'Crew headaches' }
+        ],
+        restores: 'oxygen',
+        tone: 'warn',
+        heading: 'Vented and Recharged',
+        story: 'The cabin was partly vented and refilled from the tanks. Everyone felt better by the evening, and the scrubber is running again, but it took stored air to do it.',
+        lesson: 'Emergency supplies buy you today. They do not buy you the rest of the mission.'
+      },
+      {
+        label: 'Put the crew to bed with masks on overnight',
+        hint: 'Costs nothing in stores, and costs a great deal in health.',
+        deltas: [
+          { key: 'oxygen', amount: 4, note: 'Masks used' },
+          { key: 'health', amount: -13, note: 'Headaches and poor sleep' }
+        ],
+        tone: 'bad',
+        heading: 'Masks All Night',
+        story: 'The crew slept in masks and came through the night. Nobody worked well the next day and the scrubber still needs a real repair.',
+        lesson: 'You can run a crew on very little, but they pay for every hour of it afterwards.'
+      }
+    ]
+  },
+
+  'fail-water': {
+    kind: 'Resource Emergency',
+    title: 'The Water Recycler Has Broken Down',
+    story: 'The filter finally gave up and the loop is down. Water is now leaving the store twice as fast as before, because nothing is coming back. ' +
+           'There are canisters on the ground, and there is ice under the shadowed crater nearby.',
+    options: [
+      {
+        label: 'Strip and rebuild the recycler filter',
+        hint: 'Uses power and water, and the loop runs again.',
+        deltas: [
+          { key: 'power', amount: -8, note: 'Filter rebuilt' },
+          { key: 'water', amount: 8, note: 'Loop back online' }
+        ],
+        mods: { waterRecovery: 12 },
+        restores: 'water',
+        completes: 'obj-water',
+        tone: 'good',
+        heading: 'Recycling Restored',
+        story: 'The crew stripped the filter, cleared it and put it back. From today the base cleans and reuses water instead of losing every drop.',
+        lesson: 'A working recycler is the difference between a base that can last and one that cannot.'
+      },
+      {
+        label: 'Send the rover out for ice',
+        hint: 'The most water possible, at the price of the batteries.',
+        deltas: [
+          { key: 'water', amount: 30, note: 'Ice collected by the rover' },
+          { key: 'power', amount: -24, note: 'Rover drilling used power' }
+        ],
+        restores: 'water',
+        completes: 'obj-water',
+        tone: 'warn',
+        heading: 'Ice Harvest',
+        story: 'The rover reached the shadowed crater and came back loaded. It is a lot of water, and it cost a lot of electricity to get.',
+        lesson: 'Real lunar ice is a genuine resource. In this game it works, but it is bought with power.'
+      },
+      {
+        label: 'Cut the crops and drink what is in store',
+        hint: 'Keeps the crew alive, and ends food production for good.',
+        deltas: [
+          { key: 'water', amount: 16, note: 'Emergency water drawn' },
+          { key: 'food', amount: -14, note: 'Crops switched off' }
+        ],
+        tone: 'bad',
+        heading: 'Crops Switched Off',
+        story: 'The hydroponics bay was drained and the water went to the crew. Nobody went thirsty, and there is no fresh food growing on Base Selene now.',
+        lesson: 'Every base has a chain. Cut the wrong link and you damage something you cannot repair.'
+      }
+    ]
+  },
+
+  'fail-food': {
+    kind: 'Resource Emergency',
+    title: 'Hydroponics Has Failed',
+    story: 'The grow lights and pumps have worn out together, and the trays are dying. The stores are still there, but nothing is coming. ' +
+           'Everything the crew eat from today on was sent from Earth.',
+    options: [
+      {
+        label: 'Rebuild the grow lights and replant',
+        hint: 'Uses power today. Production comes back.',
+        deltas: [
+          { key: 'power', amount: -11, note: 'Grow lights rebuilt' },
+          { key: 'food', amount: 8, note: 'New seedlings in' }
+        ],
+        mods: { foodProduction: 5 },
+        restores: 'food',
+        completes: 'obj-food',
+        tone: 'good',
+        heading: 'Hydroponics Back Online',
+        story: 'The lights and pumps were rebuilt and fresh seedlings went into the trays. The crew will be eating from the base again in a few days.',
+        lesson: 'Producing food is worth far more over a mission than eating well for one day.'
+      },
+      {
+        label: 'Live off the stores and the supply depot',
+        hint: 'Feeds the crew well today, and nothing at all tomorrow.',
+        deltas: [
+          { key: 'food', amount: 22, note: 'Depot crates opened' }
+        ],
+        restores: 'food',
+        tone: 'warn',
+        heading: 'Eating the Stores',
+        story: 'The crew ate well from the depot. It was a good day for morale and it moved the food bar, but the shelves are a little emptier now.',
+        lesson: 'Spending a store is not the same as making food. One is running down, the other is running.'
+      },
+      {
+        label: 'Halve every crew ration instead',
+        hint: 'Keeps the stores alive longer. The crew will feel it.',
+        deltas: [
+          { key: 'food', amount: -6, note: 'Rations halved' },
+          { key: 'health', amount: -7, note: 'Everyone eating less' }
+        ],
+        mods: { extraFoodUse: 0 },
+        tone: 'bad',
+        heading: 'Rations Halved',
+        story: 'Every meal was smaller from today on. The stores will last, and the crew are tired, irritable and slower than they were.',
+        lesson: 'A crew on short rations makes worse decisions. That is a cost the bars do not show.'
+      }
+    ]
+  },
+
+  'fail-habitat': {
+    kind: 'Crew Emergency',
+    title: 'The Habitat Pressure Is Dropping',
+    story: 'A seal on the habitat has worn through and the cabin is losing air very slowly. The crew are safe, but they are sleeping in shift bags and nobody is getting proper rest. ' +
+           'A crew that does not sleep does not work.',
+    options: [
+      {
+        label: 'Patch the seal and re-pressurise the habitat',
+        hint: 'Costs power and water, and the crew get their beds back.',
+        deltas: [
+          { key: 'power', amount: -7, note: 'Patch and pressurise' },
+          { key: 'water', amount: -4, note: 'Water used in the repair' },
+          { key: 'health', amount: 6, note: 'Crew back in the habitat' }
+        ],
+        restores: 'habitat',
+        tone: 'good',
+        heading: 'Habitat Sealed',
+        story: 'The seal was replaced and the cabin topped back up. The crew slept in real beds for the first time in days and woke up moving properly again.',
+        lesson: 'Rest is not a luxury on a long mission. It is what keeps people able to work.'
+      },
+      {
+        label: 'Seal the damaged section off and sleep in the rest',
+        hint: 'Cheap and quick, but the crew are cramped.',
+        deltas: [
+          { key: 'power', amount: -3, note: 'Section sealed off' },
+          { key: 'health', amount: 1, note: 'Some rest achieved' }
+        ],
+        restores: 'habitat',
+        tone: 'warn',
+        heading: 'One Section Closed',
+        story: 'The crew sealed the damaged section and fitted the bunks closer together. It is not comfortable, but it is pressurised and it is a bed.',
+        lesson: 'A partial fix buys you time. Know that you took it.'
+      },
+      {
+        label: 'Keep working outside and repair it at the end',
+        hint: 'Costs nothing today. Everyone loses sleep in the meantime.',
+        deltas: [
+          { key: 'health', amount: -10, note: 'No proper rest for the crew' },
+          { key: 'food', amount: -4, note: 'Crews too tired to eat well' }
+        ],
+        tone: 'bad',
+        heading: 'Working Through It',
+        story: 'The habitat stayed unsealed and the crew kept their shift-bag routine. It saved supplies and cost the crew a great deal of health.',
+        lesson: 'Deferring maintenance still has a price. It just arrives later, and it is usually paid in people.'
+      }
+    ]
   }
 };
 
@@ -603,7 +905,14 @@ var EVENT_STATION = {
   comms: 'console',
   meteor: 'habitat',
   fatigue: 'habitat',
-  rover: 'depot'
+  rover: 'depot',
+
+  /* Phase 3 emergencies are hosted by whatever actually broke. */
+  'fail-solar': 'solar',
+  'fail-oxygen': 'oxygen',
+  'fail-water': 'water',
+  'fail-food': 'food',
+  'fail-habitat': 'habitat'
 };
 
 /* What a plain "service" visit does at each kind of structure.
@@ -679,45 +988,67 @@ function placedNote(station) {
          ' of these, out of the ' + type.limit + ' a base may hold.';
 }
 
-/* Plain English status shown when you visit a structure. */
+/* Plain English status shown when you visit a structure. Phase 3 added
+   the condition of the machine behind the readout, because a system
+   that is worn down produces less whether or not the player knows. */
+function conditionNote(system) {
+  if (typeof conditionOf !== 'function') { return ''; }
+  var pct = Math.round(conditionOf(system));
+  if (systemFailed(system)) {
+    return ' Condition is ' + pct + '% - FAILED, running at about ' +
+           Math.round(outputFactor(system) * 100) + '%.';
+  }
+  if (pct < 100) {
+    return ' Condition is ' + pct + '%, so it is delivering about ' +
+           Math.round(outputFactor(system) * 100) + '% of normal.';
+  }
+  return ' Condition is 100%.';
+}
+
 var STATION_STATUS = {
   habitat: function (station) {
     return 'Crew health is ' + Math.round(game.health) + ' out of 100. ' +
            crewAlive() + ' of ' + STARTING_CREW + ' astronauts are fit for duty.' +
-           placedNote(station);
+           conditionNote('habitat') + placedNote(station);
   },
   oxygen: function (station) {
     return 'Oxygen store is ' + Math.round(game.oxygen) + ' out of 100. ' +
            'Breathing oxygen in use: ' + Math.round(DAILY_OXYGEN_USE) + ' per day.' +
-           placedNote(station);
+           conditionNote('oxygen') + placedNote(station);
   },
   water: function (station) {
     return 'Water supply is ' + Math.round(game.water) + ' out of 100. ' +
            (game.mods.waterRecovery > 0
-             ? 'The recycling loop is running and returning ' + game.mods.waterRecovery + ' a day.'
-             : 'The recycling loop is NOT running, so every drop used is lost.') +
-           placedNote(station);
+              ? 'The recycling loop is running and returning ' + game.mods.waterRecovery + ' a day.'
+              : 'The recycling loop is NOT running, so every drop used is lost.') +
+           conditionNote('water') + placedNote(station);
   },
   food: function (station) {
     return 'Food supply is ' + Math.round(game.food) + ' out of 100. ' +
            (game.mods.foodProduction > 0
-             ? 'Hydroponics are producing ' + game.mods.foodProduction + ' a day.'
-             : 'Hydroponics are not producing, so the stores only shrink.') +
-           placedNote(station);
+              ? 'Hydroponics are producing ' + game.mods.foodProduction + ' a day.'
+              : 'Hydroponics are not producing, so the stores only shrink.') +
+           conditionNote('food') + placedNote(station);
   },
   solar: function (station) {
     var pct = Math.round(game.mods.solarFactor * 100);
     return 'Electricity is ' + Math.round(game.power) + ' out of 100. ' +
            'The array is running at ' + pct + '% of normal output.' +
-           placedNote(station);
+           conditionNote('solar') + placedNote(station);
   },
   depot: function (station) {
-    return 'Spare parts and rations for the whole crew. A good place to resupply.' +
+    return 'Spare parts and rations for the whole crew. ' +
+           builtCount('depot') + ' depot(s) means equipment wears down ' +
+           maintenanceNote() + '. A good place to resupply.' +
            placedNote(station);
   },
   console: function (station) {
     return objectivesDone() + ' of ' + OBJECTIVES.length +
-           ' objectives are complete on mission day ' + game.day + '.' +
+           ' objectives are complete on mission day ' + game.day + '. ' +
+           'Canisters logged: ' + game.explored + ' of ' +
+           (typeof EXPLORE_TARGET === 'number' ? EXPLORE_TARGET : 6) + '. ' +
+           'Structures surveyed: ' + Object.keys(game.surveyed || {}).length + ' of ' +
+           (typeof missionSurveyTarget === 'function' ? missionSurveyTarget() : 4) + '.' +
            placedNote(station);
   },
   pad: function (station) {
@@ -726,6 +1057,17 @@ var STATION_STATUS = {
            placedNote(station);
   }
 };
+
+/* A short, plain statement of what the depots are doing for the rest
+   of the base. Shown at the depot so the player can connect the
+   building they placed to the wear they are seeing. */
+function maintenanceNote() {
+  if (typeof baseCapabilities === 'function') {
+    var caps = baseCapabilities();
+    return caps.depots > 1 ? 'more slowly' : 'a little more slowly';
+  }
+  return 'a little more slowly';
+}
 
 /* ------------------------------------------------------------
    SECTION 5: GAME STATE
@@ -755,9 +1097,20 @@ function createNewGame() {
     zoneId: null,         // which landing site was chosen, if any
     stationEvent: null,        // station type hosting today's scenario
     stationEventKey: null,     // which scenario that is
+    activeEventKey: null,      // today's scenario, fixed once the day starts
+    pendingEmergency: null,    // a system that failed, awaiting its scenario
     stationOpen: false,        // is a station panel on screen?
     serviced: {},              // station type -> true once serviced
     pickupsCollected: 0,
+    /* Phase 5: challenges, achievements and one-time awards. Created by
+       challenges.js and merged in below, so restarting a mission gets a
+       clean sheet every single time. */
+    challenges: {}, awarded: {}, unlocked: {},
+    repairsMade: 0, emergenciesHandled: 0, challengesFailed: 0, lowestSeen: {},
+    /* Phase 3: maintenance condition per system, science progress, and
+       the dust storm count. Created by mission.js, which is a separate
+       file because this one was already long enough. */
+    maint: {}, faults: {}, explored: 0, surveyed: {}, lastBalance: null, storms: 0,
     mods: {
       solarFactor: 1,             // permanent solar output multiplier
       solarFactorUntilDay: 0,     // storm ends on this day
@@ -783,6 +1136,13 @@ function clamp(value, low, high) {
 
 function round1(value) {
   return Math.round(value * 10) / 10;
+}
+
+/* A number written with an explicit + or -, for the daily balance on
+   the results screen where the sign is the whole point. */
+function signed1(value) {
+  var rounded = round1(value);
+  return (rounded > 0 ? '+' : '') + rounded;
 }
 
 function crewAlive() {
@@ -821,10 +1181,108 @@ function applyMods(mods) {
   }
 }
 
+/* The objectives that are on the table for THIS mission.
+
+   An optional objective is only listed when the base and the site can
+   actually support it, so the player is never shown a task they
+   cannot do - "bring an ice sample back" is not offered at a crater
+   where no ice has ever been found. */
+function availableObjectives() {
+  var all = allObjectives();
+  var out = [];
+  for (var i = 0; i < all.length; i++) {
+    var obj = all[i];
+    if (typeof obj.available === 'function') {
+      var ok = false;
+      try { ok = obj.available() === true; } catch (e) { ok = false; }
+      if (!ok) { continue; }
+    }
+    out.push(obj);
+  }
+  return out;
+}
+
+/* The number an objective is counting towards. Usually a constant,
+   but the survey target depends on the landing site, so `target` may
+   be a function. */
+function objectiveTarget(obj) {
+  if (typeof obj.target === 'function') {
+    var n = 1;
+    try { n = obj.target(); } catch (e) { n = 1; }
+    return (typeof n === 'number' && isFinite(n) && n > 0) ? n : 1;
+  }
+  return (typeof obj.target === 'number' && obj.target > 0) ? obj.target : 1;
+}
+
+/* How far along an objective is, as a whole number. Objectives with no
+   progress function are simply 0 or 1. */
+function objectiveProgress(obj) {
+  var target = objectiveTarget(obj);
+  if (game.completed[obj.id]) { return target; }
+  if (typeof obj.progress !== 'function') { return 0; }
+  var n = 0;
+  try { n = obj.progress(); } catch (e) { n = 0; }
+  if (typeof n !== 'number' || !isFinite(n) || n < 0) { n = 0; }
+  return Math.min(Math.round(n), target);
+}
+
+/* Called once a day. Marks every available objective whose condition
+   now holds. completeObjective() is idempotent, so an objective can
+   only ever be counted and paid once, however often this runs. */
+function refreshObjectives() {
+  var list = availableObjectives();
+  for (var i = 0; i < list.length; i++) {
+    var obj = list[i];
+    if (game.completed[obj.id]) { continue; }
+    if (typeof obj.progress === 'function' && objectiveProgress(obj) >= objectiveTarget(obj)) {
+      completeObjective(obj.id);
+    }
+  }
+}
+
 function objectivesDone() {
   var count = 0;
-  for (var i = 0; i < OBJECTIVES.length; i++) {
-    if (game.completed[OBJECTIVES[i].id]) { count++; }
+  var list = availableObjectives();
+  for (var i = 0; i < list.length; i++) {
+    if (game.completed[list[i].id]) { count++; }
+  }
+  return count;
+}
+
+function objectivesTotal() { return availableObjectives().length; }
+
+function primaryObjectivesDone() {
+  var count = 0;
+  var list = availableObjectives();
+  for (var i = 0; i < list.length; i++) {
+    if (isPrimary(list[i]) && game.completed[list[i].id]) { count++; }
+  }
+  return count;
+}
+
+function primaryObjectivesTotal() {
+  var count = 0;
+  var list = availableObjectives();
+  for (var i = 0; i < list.length; i++) {
+    if (isPrimary(list[i])) { count++; }
+  }
+  return count;
+}
+
+function optionalObjectivesDone() {
+  var count = 0;
+  var list = availableObjectives();
+  for (var i = 0; i < list.length; i++) {
+    if (!isPrimary(list[i]) && game.completed[list[i].id]) { count++; }
+  }
+  return count;
+}
+
+function optionalObjectivesTotal() {
+  var count = 0;
+  var list = availableObjectives();
+  for (var i = 0; i < list.length; i++) {
+    if (!isPrimary(list[i])) { count++; }
   }
   return count;
 }
@@ -922,35 +1380,104 @@ function rememberValues() {
 
 function renderMission() {
   var done = objectivesDone();
-  var total = OBJECTIVES.length;
-  var percent = Math.round((done / total) * 100);
+  var total = objectivesTotal();
+  var percent = (total > 0) ? Math.round((done / total) * 100) : 0;
 
-  el('progress-text').textContent = done + ' of ' + total + ' objectives complete';
+  var pDone = primaryObjectivesDone();
+  var pTotal = primaryObjectivesTotal();
+
+  el('progress-text').textContent = done + ' of ' + total + ' objectives complete' +
+    '  ·  primary ' + pDone + '/' + pTotal;
   el('progress-percent').textContent = percent + '%';
   el('progress-fill').style.width = percent + '%';
 
+  var list = availableObjectives();
+
+  /* The next thing to do is always a primary objective if one is
+     left: the optional ones are a bonus, not the job. */
   var nextObjective = null;
-  for (var i = 0; i < OBJECTIVES.length; i++) {
-    if (!game.completed[OBJECTIVES[i].id]) { nextObjective = OBJECTIVES[i]; break; }
+  for (var i = 0; i < list.length; i++) {
+    if (!game.completed[list[i].id]) {
+      if (isPrimary(list[i])) { nextObjective = list[i]; break; }
+      if (!nextObjective) { nextObjective = list[i]; }
+    }
   }
+
   el('current-objective').textContent = nextObjective
     ? nextObjective.text
     : 'All objectives complete. Bring the crew home.';
 
   var listHtml = '';
-  for (var j = 0; j < OBJECTIVES.length; j++) {
-    var obj = OBJECTIVES[j];
+  for (var j = 0; j < list.length; j++) {
+    var obj = list[j];
     var isDone = !!game.completed[obj.id];
     var isNext = nextObjective && obj.id === nextObjective.id;
     var cls = isDone ? 'done' : (isNext ? 'next' : '');
     var icon = isDone ? '✔' : (isNext ? '▶' : '○');
+
+    /* Progress, where the objective has any. */
+    var progressText = '';
+    if (!isDone) {
+      var now = objectiveProgress(obj);
+      var goal = objectiveTarget(obj);
+      if (now > 0) { progressText = ' <span class="obj-progress">' + now + '/' + goal + '</span>'; }
+    }
+
     listHtml +=
-      '<li class="' + cls + '">' +
+      '<li class="' + cls + (isPrimary(obj) ? ' is-primary' : ' is-optional') + '">' +
         '<span class="obj-icon" aria-hidden="true">' + icon + '</span>' +
-        '<span>' + obj.text + '</span>' +
+        '<span>' + obj.text + progressText + '</span>' +
+        '<span class="obj-kind">' + (isPrimary(obj) ? 'required' : 'optional') + '</span>' +
       '</li>';
   }
   el('objective-list').innerHTML = listHtml;
+}
+
+/* ------------------------------------------------------------
+   10b. THE CHALLENGE PANEL
+   Phase 5. Small, quiet, and only on screen when something actually
+   needs doing - a game HUD that is permanently shouting is a HUD
+   nobody reads.
+   ------------------------------------------------------------ */
+
+function renderChallenges() {
+  var box = el('challenge-panel');
+  if (!box) { return; }
+
+  var open = [];
+  if (game && !game.finished) {
+    for (var i = 0; i < CHALLENGES.length; i++) {
+      var def = CHALLENGES[i];
+      var state = game.challenges[def.id];
+      if (state && state.status === 'active') { open.push({ def: def, state: state }); }
+    }
+  }
+
+  if (open.length === 0) { box.innerHTML = ''; box.hidden = true; return; }
+
+  var html = '';
+  for (var c = 0; c < open.length; c++) {
+    var d = open[c].def;
+    var s = open[c].state;
+    var urgent = false;
+    if (!d.continuous && s.deadlineDay !== null && s.deadlineDay !== undefined) {
+      urgent = (s.deadlineDay - game.day) <= 1;
+    }
+
+    html +=
+      '<div class="hud-challenge' + (urgent ? ' is-urgent' : '') + '">' +
+        '<span class="hc-icon" aria-hidden="true">' + d.icon + '</span>' +
+        '<span class="hc-body">' +
+          '<span class="hc-title">' + d.title + '</span>' +
+          '<span class="hc-where">Go to the ' +
+            (typeof STATION_TYPE_INDEX !== 'undefined' && STATION_TYPE_INDEX[d.host]
+              ? STATION_TYPE_INDEX[d.host].name.toLowerCase() : d.host) +
+          ' &middot; ' + challengeDeadlineText(d, s) + '</span>' +
+        '</span>' +
+      '</div>';
+  }
+  box.innerHTML = html;
+  box.hidden = false;
 }
 
 function renderTopbar() {
@@ -981,12 +1508,20 @@ function renderAll() {
   renderResources();
   renderMission();
   renderTopbar();
+  if (typeof renderChallenges === 'function') { renderChallenges(); }
 }
 
 /* ------------------------------------------------------------
    SECTION 11: THE DAILY CYCLE
    This is the heart of the game. Every day the base consumes
    resources, and low resources hurt the crew.
+
+   Phase 3: the numbers are no longer fixed constants. They come from
+   what the player actually built and from the site they landed at,
+   worked out in mission.js. The shape of the calculation is unchanged
+   - generation minus consumption, then the low-supply health
+   penalties - but the values moving through it now depend on the
+   base, which is the whole point of the builder.
    ------------------------------------------------------------ */
 
 function runDayCycle() {
@@ -995,19 +1530,70 @@ function runDayCycle() {
   var alive = crewAlive();
   var crewFactor = alive / STARTING_CREW;
 
-  // Solar panels
-  var solar = SOLAR_GENERATION * game.mods.solarFactor;
-  if (game.day < game.mods.solarFactorUntilDay) {
-    solar = solar * game.mods.stormSolarFactor;
+  /* ---- dust storms ----
+     A storm begins before the day's production is worked out, so the
+     crew feels it on the day it arrives rather than the day after. */
+  if (typeof isDustStormDay === 'function' && isDustStormDay(game.day) &&
+      game.day >= game.mods.solarFactorUntilDay) {
+    var storm = applyDustStorm();
+    game.dayLog.push({
+      key: 'day',
+      amount: 0,
+      note: 'Dust storm: solar output cut to ' +
+            Math.round(storm.severity * 100) + '% for ' + storm.length + ' days'
+    });
   }
 
-  // Power in, power out
-  applyDelta('power', solar - DAILY_POWER_USE, 'Solar +' + solar + ' / systems -' + DAILY_POWER_USE);
+  /* ---- the day's balance ---- */
+  var plan;
+  if (typeof projectedDailyDeltas === 'function' &&
+      typeof baseCapabilities === 'function' &&
+      typeof siteFactors === 'function') {
+    plan = projectedDailyDeltas(baseCapabilities(), siteFactors());
+  } else {
+    /* Fallback: the fixed numbers Phase 3 replaced, kept so this file
+       still plays correctly if mission.js is ever missing. */
+    var oldSolar = SOLAR_GENERATION * game.mods.solarFactor;
+    if (game.day < game.mods.solarFactorUntilDay) {
+      oldSolar = oldSolar * game.mods.stormSolarFactor;
+    }
+    plan = {
+      power: oldSolar - DAILY_POWER_USE,
+      oxygen: game.mods.oxygenProduction - DAILY_OXYGEN_USE * crewFactor,
+      water: game.mods.waterRecovery - DAILY_WATER_USE * crewFactor,
+      food: game.mods.foodProduction - (DAILY_FOOD_USE + game.mods.extraFoodUse) * crewFactor,
+      health: 0
+    };
+  }
 
-  // Oxygen, water, food
-  applyDelta('oxygen', game.mods.oxygenProduction - DAILY_OXYGEN_USE * crewFactor, 'Crew breathing');
-  applyDelta('water',  game.mods.waterRecovery - DAILY_WATER_USE * crewFactor, 'Drinking, washing, crops');
-  applyDelta('food',   game.mods.foodProduction - (DAILY_FOOD_USE + game.mods.extraFoodUse) * crewFactor, 'Crew eating');
+  game.lastBalance = plan;
+
+  applyDelta('power',
+    plan.power,
+    'Solar +' + round1(plan.solarGenerated !== undefined ? plan.solarGenerated : 0) +
+    ' / systems -' + round1(plan.powerUsed !== undefined ? plan.powerUsed : DAILY_POWER_USE) +
+    (plan.heating ? ' (incl. ' + round1(plan.heating) + ' heating)' : ''));
+
+  applyDelta('oxygen', plan.oxygen,
+    game.mods.oxygenProduction > 0
+      ? 'Crew breathing, scrubber running'
+      : 'Crew breathing, no scrubber running');
+
+  applyDelta('water', plan.water,
+    (game.mods.waterRecovery > 0 || builtCount('water') > 0)
+      ? 'Drinking, washing, crops - recycler running'
+      : 'Drinking, washing, crops - recycler NOT running');
+
+  applyDelta('food', plan.food,
+    (game.mods.foodProduction > 0 || builtCount('food') > 0)
+      ? 'Crew eating - hydroponics producing'
+      : 'Crew eating - hydroponics not producing');
+
+  if (plan.health !== 0) {
+    applyDelta('health', plan.health, builtCount('habitat') > 0
+      ? 'Crew rested in the habitat'
+      : 'No pressurized habitat: the crew slept in shift bags');
+  }
 
   // Health penalties when something runs low
   if (game.oxygen < LOW_OXYGEN_LEVEL) {
@@ -1025,6 +1611,26 @@ function runDayCycle() {
   if (game.health < 35) {
     applyDelta('health', -4, 'Exhaustion');
   }
+
+  /* ---- equipment maintenance, Phase 3 ----
+     Wear happens after the day's output, so servicing a structure
+     today helps tomorrow rather than today. */
+  if (typeof wearDownDay === 'function') {
+    var faults = wearDownDay();
+    for (var f = 0; f < faults.length; f++) { game.dayLog.push(faults[f]); }
+
+    /* A failed life-support system is the emergency the crew has to
+       act on. It is reported as it happens rather than discovered
+       later, because a silent failure is not a fair one. */
+    if (game.faults && game.faults.oxygen) {
+      applyDelta('health', -5, 'The oxygen scrubber has failed');
+    }
+    if (game.faults && game.faults.water) {
+      applyDelta('health', -3, 'The water recycler has failed');
+    }
+  }
+
+  if (typeof sanitizeMission === 'function') { sanitizeMission(); }
 }
 
 function checkFailure() {
@@ -1119,8 +1725,21 @@ function chooseOption(event) {
   applyDeltas(option.deltas);
   applyMods(option.mods);
 
+  /* Phase 3: an option can put the broken machine back to new. This is
+     what the maintenance model is for - the emergency is not a one-off
+     penalty, it is a system you have to actually repair. */
+  if (option.restores && typeof serviceSystem === 'function') {
+    if (serviceSystem(option.restores)) {
+      game.dayLog.push({
+        key: 'day',
+        amount: 0,
+        note: (FAULT_NAMES[option.restores] || 'The system') + ' back to full condition'
+      });
+    }
+  }
+
   if (option.completes) {
-    game.completed[option.completes] = true;
+    completeObjective(option.completes);
   }
 
   if (option.tone === 'good') { game.goodChoices++; }
@@ -1148,17 +1767,86 @@ function chooseOption(event) {
   if (!game.finished) { el('btn-next-day').focus(); }
 }
 
-/* All objectives done means the mission is a success. */
+/* Every PRIMARY objective done means the mission is a success.
+
+   Optional objectives are not required. Missing one costs points in
+   the objective band; it does not stop the crew coming home. That is
+   the whole point of splitting them.
+
+   The 16 day limit is a hard rule: a mission that has run past it is
+   a failure no matter how many objectives it met, so this refuses to
+   declare a victory the moment game.day is past MISSION_LENGTH_DAYS.
+   sanitizeMission() enforces the same rule a second time, in case
+   anything else ever calls endMission(true). */
 function checkWin() {
-  if (objectivesDone() === OBJECTIVES.length) {
-    endMission(true, 'Every mission objective was completed.');
+  if (game.day > MISSION_LENGTH_DAYS) {
+    endMission(false, 'Mission time ran out before every objective was completed.');
+    return true;
+  }
+  if (primaryObjectivesDone() === primaryObjectivesTotal() && primaryObjectivesTotal() > 0) {
+    endMission(true, 'Every primary objective was completed.');
     return true;
   }
   return false;
 }
 
+/* Which scenario the player is looking at right now.
+
+   Once a day has been resolved the answer is fixed and cached, because
+   chooseOption() asks again and must get the same answer it did when
+   the panel was drawn. */
 function currentEventKey() {
-  return SCHEDULE[game.day] || null;
+  if (game.activeEventKey) { return game.activeEventKey; }
+
+  var scheduled = SCHEDULE[game.day] || null;
+
+  /* Departure is the one thing the crew can still be working towards
+     late. If a PRIMARY objective is still outstanding when the
+     scheduled launch day arrives, the launch slips rather than ending
+     the mission with the mission's own requirements unfinished - right
+     up to the last day, which is what makes the limit bite. Optional
+     objectives do not hold the launch up. */
+  if (scheduled === 'depart') {
+    if (game.day > MISSION_LENGTH_DAYS) { return null; }
+    if (primaryObjectivesDone() + 1 < primaryObjectivesTotal()) { return null; }
+    return 'depart';
+  }
+  if (!scheduled && game.day >= 12 && game.day <= MISSION_LENGTH_DAYS &&
+      !game.completed['obj-return']) {
+    return 'depart';
+  }
+
+  /* A scheduled event needs the structure that hosts it. A base with no
+     depot cannot receive the resupply run, so that day is simply a
+     quiet one rather than a broken game. */
+  if (scheduled && typeof EVENT_STATION === 'object') {
+    var host = EVENT_STATION[scheduled];
+    if (host && builtCount(host) === 0) { return null; }
+  }
+
+  return scheduled;
+}
+
+/* Resolve the day's scenario once, at the start of the day.
+
+   A system that failed during the wear-down takes priority over
+   everything on the schedule. A failed life-support system is not
+   something the crew can walk past to deal with the resupply run
+   instead, so it moves to the front of the day and pushes whatever was
+   scheduled to tomorrow. */
+function resolveEventKey() {
+  if (game.pendingEmergency) {
+    var emergency = 'fail-' + game.pendingEmergency;
+    if (EVENTS[emergency]) {
+      game.pendingEmergency = null;
+      game.activeEventKey = emergency;
+      return emergency;
+    }
+    game.pendingEmergency = null;
+  }
+
+  game.activeEventKey = currentEventKey();
+  return game.activeEventKey;
 }
 
 function showResult(config) {
@@ -1238,8 +1926,30 @@ function applyBase(plan) {
 
 function startMission() {
   game = createNewGame();
+  if (typeof missionNewState === 'function') { applyMissionState(missionNewState()); }
+  /* Phase 5: every challenge, badge and one-time award is cleared
+     here, which is what makes Restart Mission a genuine reset rather
+     than a second mission wearing the first one's state. */
+  if (typeof challengeNewState === 'function') { applyChallengeState(challengeNewState()); }
   lastRendered = null;
   closeStationPanel();
+
+  /* A running mission and the builder are different modes, and several
+     things read `builder.open` to decide which one they are looking at:
+     conditionOf() reports brand new equipment while it is open, and
+     countOfType() reads the builder's base rather than the mission's.
+     Leaving the builder open across a mission start would therefore
+     make the whole base look new and the whole layout look like the
+     one being edited. Close it here, so there is exactly one way in. */
+  if (typeof closeBuilder === 'function' && typeof builder !== 'undefined' && builder && builder.open) {
+    builder.open = false;
+    var gameSection = el('screen-game');
+    if (gameSection) { gameSection.classList.remove('is-building'); }
+    var buildBar = el('build-bar');
+    if (buildBar) { buildBar.hidden = true; }
+    if (window.world && typeof world.setMode === 'function') { world.setMode('play'); }
+  }
+
   applyBase(currentPlan());
   if (window.world && typeof world.reset === 'function') { world.reset(); }
   showScreen('game');
@@ -1266,6 +1976,27 @@ function beginDay() {
      from yesterday would block today's scenario. */
   game.decisionLocked = false;
   game.stationOpen = false;
+  game.activeEventKey = null;
+
+  /* ------------------------------------------------------------
+     PHASE 5: challenges, objectives and achievements.
+
+     This runs after the resource cycle and after any failure check,
+     so a challenge is judged against today's real numbers, and a
+     challenge can never rescue a base that already failed today.
+
+     Order matters:
+       updateChallenges()   starts what should start, expires what
+                            has run out of time
+       refreshObjectives()  marks any objective whose condition now
+                            holds - idempotent, so it can never pay
+                            twice
+       updateAchievements() unlocks badges - also idempotent, and it
+                            adds no points
+     ------------------------------------------------------------ */
+  if (typeof updateChallenges === 'function') { updateChallenges(); }
+  if (typeof refreshObjectives === 'function') { refreshObjectives(); }
+  if (typeof updateAchievements === 'function') { updateAchievements(); }
 
   /* ------------------------------------------------------------
      NEW IN THE 2D GAME
@@ -1273,9 +2004,17 @@ function beginDay() {
      attached to its station, with a glowing marker, and the
      player has to physically walk over and press E to deal with it.
      ------------------------------------------------------------ */
-  var eventKey = currentEventKey();
+  var eventKey = resolveEventKey();
   game.stationEventKey = eventKey || null;
   game.stationEvent = eventKey ? (EVENT_STATION[eventKey] || null) : null;
+
+  /* A structure with an open challenge on it gets a marker too, even
+     when no scripted scenario is scheduled for today. Walking to it
+     is how the player answers the challenge. */
+  var host = typeof activeChallengeHost === 'function' ? activeChallengeHost() : null;
+  if (host && !game.stationEvent) {
+    game.stationEvent = host;
+  }
 
   if (window.world && typeof world.setStationEvent === 'function') {
     world.setStationEvent(game.stationEvent);
@@ -1355,8 +2094,24 @@ function showStationPanel(station) {
   var already = !!game.serviced[type];
   var service = STATION_SERVICE[type];
 
+  /* Phase 3: reading a structure's readout is a survey, and surveying
+     enough of them completes the science objective. Four different
+     kinds, so walking the length of the base once is enough. */
+  if (typeof noteSurvey === 'function') { noteSurvey(type); }
+
   var html = '';
   html += '<div class="station-readout">' + statusText + '</div>';
+
+  /* ---- Phase 5: an open challenge, answered here ----
+     The challenge lives at the structure that is broken, so this is
+     where it is answered. It sits above the ordinary service action
+     because it is more urgent. */
+  if (typeof challengesAtHost === 'function') {
+    var open = challengesAtHost(type);
+    for (var c = 0; c < open.length; c++) {
+      html += challengePanelHtml(open[c]);
+    }
+  }
 
   if (service && !already && service.deltas.length > 0) {
     html += '<button class="btn-option" type="button" id="btn-service">' +
@@ -1372,6 +2127,8 @@ function showStationPanel(station) {
 
   el('event-options').innerHTML = html;
 
+  bindChallengeOptions();
+
   var serviceBtn = el('btn-service');
   if (serviceBtn) { serviceBtn.addEventListener('click', function () { doService(type); }); }
   el('btn-leave-station').addEventListener('click', function () {
@@ -1385,6 +2142,53 @@ function showStationPanel(station) {
   openStationPanel();
 }
 
+/* Answer a challenge from the station panel. Kept apart from
+   doService() because a challenge is a one-shot decision with its own
+   success test, while a service is a repeatable-per-mission action. */
+function answerChallenge(challengeId, optionIndex) {
+  var result = resolveChallenge(challengeId, optionIndex);
+  if (!result.ok) { return result; }
+
+  /* Objectives and achievements are refreshed after the answer, so a
+     challenge that just settled its objective shows immediately. */
+  if (typeof refreshObjectives === 'function') { refreshObjectives(); }
+  if (typeof updateAchievements === 'function') { updateAchievements(); }
+
+  rememberValues();
+  renderAll();
+
+  var tone = result.outcome === 'success' ? 'good' :
+             (result.outcome === 'fail' ? 'bad' : 'warn');
+  var heading = result.outcome === 'success' ? 'Challenge settled' :
+                (result.outcome === 'fail' ? 'Challenge failed' : 'Patched, not fixed');
+
+  showResult({
+    tone: tone,
+    heading: heading,
+    story: result.note,
+    entries: game.dayLog.slice(),
+    lesson: result.outcome === 'success'
+      ? 'Fixing the cause rather than the symptom is what makes a problem stay fixed.'
+      : (result.outcome === 'fail'
+          ? 'Leaving a real problem alone does not make it smaller. It only makes it later.'
+          : 'A patch buys time. It does not buy the mission.')
+  });
+
+  el('event-options').innerHTML = '';
+  el('btn-next-day').hidden = false;
+  el('btn-next-day').disabled = false;
+
+  if (window.world) {
+    world.bump(result.outcome === 'success' ? 3 : 5);
+    world.playWork(46);
+  }
+
+  /* Settling the last primary objective ends the mission, exactly as
+     answering an event would. */
+  checkWin();
+  return result;
+}
+
 /* Actually perform the station service action. Keyed by structure
    type, so a base with two depots services the depot type once. */
 function doService(stationType) {
@@ -1396,6 +2200,20 @@ function doService(stationType) {
   game.serviced[stationType] = true;
   applyDeltas(service.deltas);
   applyMods(service.mods);
+
+  /* Phase 3: servicing is also what puts the machine back to new. This
+     is the reason a supply depot is worth building - the spares slow
+     the daily wear, and the service visit reverses it completely. */
+  if (typeof serviceSystem === 'function' && typeof SERVICE_SYSTEM === 'object') {
+    var system = SERVICE_SYSTEM[stationType];
+    if (system && serviceSystem(system)) {
+      game.dayLog.push({
+        key: 'day',
+        amount: 0,
+        note: (FAULT_NAMES[system] || 'This system') + ' back to full condition'
+      });
+    }
+  }
 
   rememberValues();
   renderAll();
@@ -1428,6 +2246,12 @@ function collectPickup() {
   if (game.food < game[weakest]) { weakest = 'food'; }
 
   game.pickupsCollected = game.pickupsCollected + 1;
+
+  /* Phase 3: collecting is also the exploration task, so it counts
+     towards the science objective as well as topping up a bar. */
+  game.explored = game.pickupsCollected;
+  if (typeof noteExploration === 'function') { noteExploration(); }
+
   applyDelta(weakest, 6, 'Supply canister collected');
   rememberValues();
   renderAll();
@@ -1456,10 +2280,44 @@ function setPausedUI(paused) {
 
 /* ------------------------------------------------------------
    SECTION 14: SCORING
-   ------------------------------------------------------------ */
+   ------------------------------------------------------------
+
+   The score is still out of 100 and the five bands are unchanged:
+   objectives 30, crew survival 25, health 15, supplies 20,
+   efficiency 10.
+
+   Phase 5 split the objective band in two so that optional work is
+   visibly worth something without ever being required:
+
+     primary objectives   24 points
+     optional objectives   6 points
+
+   Still 30 in total. Achievements add NOTHING - they are badges, and
+   `sanitizeMission()` in mission.js re-checks that the score cannot
+   leave 0-100 or survive a late arrival after either band has been
+   added. */
+
+var SCORE_BAND_OBJECTIVES = 30;
+var SCORE_BAND_PRIMARY = 24;
+var SCORE_BAND_OPTIONAL = 6;
 
 function calculateScore() {
-  var objectivePoints = objectivesDone() * 5;                 // up to 30
+  /* Each band is scored as a proportion and rounded, so the two
+     together can never come to more than the 30 they are worth. */
+  var pTotal = primaryObjectivesTotal();
+  var oTotal = optionalObjectivesTotal();
+
+  var primaryPoints = (pTotal > 0)
+    ? Math.round((SCORE_BAND_PRIMARY * primaryObjectivesDone()) / pTotal)
+    : 0;
+  var optionalPoints = (oTotal > 0)
+    ? Math.round((SCORE_BAND_OPTIONAL * optionalObjectivesDone()) / oTotal)
+    : 0;
+
+  /* Belt and braces: the bands are declared to be worth 30, so the
+     two together are clamped to that even if a future edit makes the
+     arithmetic drift. */
+  var objectivePoints = clamp(primaryPoints + optionalPoints, 0, SCORE_BAND_OBJECTIVES);
 
   var alive = crewAlive();
   var survivalPoints = 0;
@@ -1485,7 +2343,7 @@ function calculateScore() {
   if (!game.success) {
     total = Math.round(total * 0.6);
   }
-  return clamp(total, 0, 100);
+  return clamp(Math.round(total), 0, 100);
 }
 
 function endMission(success, reason) {
@@ -1494,6 +2352,25 @@ function endMission(success, reason) {
   game.finished = true;
   game.success = success;
   game.failReason = reason;
+
+  /* Phase 3 + Phase 5, and the ORDER MATTERS.
+
+     sanitizeMission() runs FIRST. It is what turns a success that
+     arrived after the 16 day limit back into a failure, and until it
+     has run, `game.success` may still be lying.
+
+     Only then are the end-of-mission objectives and badges judged, so
+     no achievement can ever be handed out for a mission that was
+     about to be downgraded to a failure. */
+  if (typeof sanitizeMission === 'function') { sanitizeMission(); }
+
+  /* Two objectives - finishing with every supply high, and finishing
+     with the whole base serviced - are about the final state and are
+     simply unknowable during play. completeObjective() and awardOnce()
+     are both idempotent, so running this more than once is harmless. */
+  if (typeof refreshObjectives === 'function') { refreshObjectives(); }
+  if (typeof updateAchievements === 'function') { updateAchievements(); }
+
   game.score = calculateScore();
   game.stationOpen = false;
   game.stationEvent = null;
@@ -1537,8 +2414,17 @@ function showResults() {
     ? 'Crew lost'
     : alive + ' of ' + STARTING_CREW + ' alive';
   el('r-days').textContent = Math.min(game.day, MISSION_LENGTH_DAYS) + ' of ' + MISSION_LENGTH_DAYS;
-  el('r-objectives').textContent = objectivesDone() + ' of ' + OBJECTIVES.length;
+  el('r-objectives').textContent = objectivesDone() + ' of ' + objectivesTotal() +
+    '  (primary ' + primaryObjectivesDone() + '/' + primaryObjectivesTotal() + ')';
   el('r-decisions').textContent = game.goodChoices + ' good / ' + game.badChoices + ' poor';
+
+  /* ---- Phase 5: challenges handled ---- */
+  var rChal = el('r-challenges');
+  if (rChal) {
+    var settled = challengesSettled();
+    rChal.textContent = settled + ' settled / ' +
+      (CHALLENGES.length - settled) + ' not settled';
+  }
 
   var resHtml = '';
   var keys = ['oxygen', 'water', 'food', 'power', 'health'];
@@ -1555,17 +2441,40 @@ function showResults() {
   }
   el('result-resources').innerHTML = resHtml;
 
+  /* ---- objectives, split into required and optional ---- */
   var objHtml = '';
-  for (var j = 0; j < OBJECTIVES.length; j++) {
-    var obj = OBJECTIVES[j];
+  var shown = availableObjectives();
+  for (var j = 0; j < shown.length; j++) {
+    var obj = shown[j];
     var done = !!game.completed[obj.id];
+    var label = obj.text;
+    if (!isPrimary(obj)) { label += ' <em class="obj-optional">(optional)</em>'; }
     objHtml +=
-      '<li class="' + (done ? 'done' : '') + '">' +
+      '<li class="' + (done ? 'done' : '') + (isPrimary(obj) ? ' is-primary' : ' is-optional') + '">' +
         '<span class="obj-icon" aria-hidden="true">' + (done ? '✔' : '✘') + '</span>' +
-        '<span>' + obj.text + '</span>' +
+        '<span>' + label + '</span>' +
+      '</li>';
+  }
+
+  /* Objectives that were on the table but are not any more, because
+     the base or the site stopped supporting them. Saying so is better
+     than silently dropping a line the player remembers seeing. */
+  var all = allObjectives();
+  for (var u = 0; u < all.length; u++) {
+    var was = all[u];
+    var present = false;
+    for (var p2 = 0; p2 < shown.length; p2++) { if (shown[p2].id === was.id) { present = true; } }
+    if (present) { continue; }
+    objHtml +=
+      '<li class="is-unavailable">' +
+        '<span class="obj-icon" aria-hidden="true">&mdash;</span>' +
+        '<span>' + was.text + ' <em class="obj-optional">(not available on this base or site)</em></span>' +
       '</li>';
   }
   el('result-objectives').innerHTML = objHtml;
+
+  renderResultChallenges();
+  renderResultAchievements();
 
   el('result-report').textContent = buildReport();
 
@@ -1595,6 +2504,42 @@ function showResults() {
   if (game.mods.extraFoodUse > 0) {
     tips.push('Switching to meal packs raised food use permanently. Fixing production instead is cheaper over 12 days.');
   }
+
+  /* ---- Phase 3: what the base and the science tasks cost you ---- */
+  if (typeof EXPLORE_TARGET === 'number' && game.explored < EXPLORE_TARGET) {
+    tips.push('You only logged ' + game.explored + ' of ' + EXPLORE_TARGET +
+      ' canisters. Walking the length of the base once is enough for the science task.');
+  }
+  var surveyedCount = Object.keys(game.surveyed || {}).length;
+  var surveyNeed = (typeof missionSurveyTarget === 'function')
+    ? missionSurveyTarget()
+    : (typeof SURVEY_TARGET === 'number' ? SURVEY_TARGET : 4);
+  if (surveyedCount < surveyNeed) {
+    tips.push('You inspected ' + surveyedCount + ' structures. Reading ' + surveyNeed +
+      ' different readouts signs off the survey, and it costs nothing but walking.' +
+      (typeof iceConfirmedAt === 'function' && iceConfirmedAt(game.zoneId)
+        ? ' At a crater where ice was actually measured, that target is lower.' : ''));
+  }
+  if (game.maint && typeof MAINT_SYSTEMS !== 'undefined') {
+    var worstSystem = null;
+    var worstCondition = 100;
+    for (var mi = 0; mi < MAINT_SYSTEMS.length; mi++) {
+      var ms = MAINT_SYSTEMS[mi];
+      if (typeof game.maint[ms] === 'number' && game.maint[ms] < worstCondition) {
+        worstCondition = game.maint[ms];
+        worstSystem = ms;
+      }
+    }
+    if (worstSystem && worstCondition < 70) {
+      tips.push('The ' + (FAULT_NAMES[worstSystem] || worstSystem).toLowerCase() +
+        ' finished at ' + Math.round(worstCondition) + '% condition. Servicing a ' +
+        'structure puts it back to 100%, and a supply depot slows the wear in the first place.');
+    }
+  }
+  if (game.storms > 0) {
+    tips.push('This mission saw ' + game.storms + ' dust storm' + (game.storms > 1 ? 's' : '') +
+      '. Dusty sites wear equipment faster and catch more storms.');
+  }
   if (crewAlive() < STARTING_CREW) {
     tips.push('You lost crew members. Health drops fastest when oxygen is low, so watch that bar above all others.');
   }
@@ -1609,9 +2554,132 @@ function showResults() {
   }
 }
 
+/* A short, plain explanation of why the mission ended the way it did.
+
+   This is the single most useful sentence on the results screen, and
+   it deliberately picks ONE decisive fact rather than listing
+   everything: a player who reads one line should know what to do
+   differently next time. */
+function outcomeExplanation() {
+  var pMissing = primaryObjectivesTotal() - primaryObjectivesDone();
+
+  if (game.day > MISSION_LENGTH_DAYS) {
+    return 'Why: you ran out of mission days with ' + pMissing +
+      ' required objective(s) still open. The ' + MISSION_LENGTH_DAYS +
+      '-day limit is absolute - a mission that runs past it is a ' +
+      'failure however much else was achieved.';
+  }
+  if (game.health <= 0) {
+    return 'Why: crew health reached zero. Health falls fastest when a ' +
+      'supply runs out, so the vital bars were the thing to watch.';
+  }
+  if (game.oxygen <= 0) {
+    return 'Why: the oxygen store ran out. Nothing on the Moon can replace ' +
+      'air you already have - it has to come from the scrubber or the tanks.';
+  }
+  if (game.water <= 0) {
+    return 'Why: the water store ran out. Recycling is what makes a lunar ' +
+      'base possible at all; an unfiltered loop loses every drop.';
+  }
+  if (game.food <= 0) {
+    return 'Why: the food store ran out. Stored rations come from Earth, ' +
+      'and a crop that stops producing never starts again.';
+  }
+  if (game.success) {
+    if (game.day <= 10) {
+      return 'Why: you met every required objective and got the crew home ' +
+        'in ' + game.day + ' days, well inside the ' + MISSION_LENGTH_DAYS +
+        '-day limit. A faster mission scores the same on objectives but ' +
+        'leaves more margin for the next one.';
+    }
+    return 'Why: you met every required objective and brought the crew home ' +
+      'inside the ' + MISSION_LENGTH_DAYS + '-day limit.';
+  }
+  return 'Why: the mission ended with ' + pMissing + ' required objective(s) ' +
+    'outstanding. Required objectives are what turn a mission into a ' +
+    'successful one; optional ones only add points.';
+}
+
+/* The challenge list on the results screen: what came up, how it
+   ended, and what it cost. Every challenge in the catalogue appears,
+   including the ones that never arose, because "that never came up"
+   is itself information. */
+function renderResultChallenges() {
+  var box = el('result-challenges');
+  if (!box || typeof challengeHistory !== 'function') { return; }
+
+  var history = challengeHistory();
+  var html = '';
+
+  for (var i = 0; i < history.length; i++) {
+    var entry = history[i];
+    var cls = 'ch-entry is-' + entry.status;
+    html +=
+      '<li class="' + cls + '">' +
+        '<span class="ch-icon" aria-hidden="true">' + entry.def.icon + '</span>' +
+        '<span class="ch-body">' +
+          '<span class="ch-title">' + entry.def.title + '</span>' +
+          '<span class="ch-outcome">' + challengeOutcomeText(entry) + '</span>' +
+          (entry.note ? '<span class="ch-note">' + entry.note + '</span>' : '') +
+        '</span>' +
+      '</li>';
+  }
+
+  var repairs = (game.repairsMade || 0);
+  var failed = (game.challengesFailed || 0);
+  var handled = (game.emergenciesHandled || 0);
+  function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
+
+  html +=
+    '<li class="ch-summary">' +
+      '<span class="ch-body">' +
+        '<span class="ch-title">Totals</span>' +
+        '<span class="ch-outcome">' + plural(repairs, 'repair') + ' made &middot; ' +
+          plural(failed, 'failure') + ' &middot; ' +
+          plural(handled, 'emergency') + ' handled</span>' +
+        '<span class="ch-note">Deadlines and thresholds are ' +
+          '<span class="tag tag-game">GAME ESTIMATE</span> values; the problems ' +
+          'they describe are real.</span>' +
+      '</span>' +
+    '</li>';
+
+  box.innerHTML = html;
+}
+
+/* Achievements on the results screen. Earned ones first and in full;
+   locked ones are shown greyed with their condition, so the player can
+   see what the game is asking for without it being a mystery. */
+function renderResultAchievements() {
+  var box = el('result-achievements');
+  if (!box || typeof ACHIEVEMENTS === 'undefined') { return; }
+
+  var html = '';
+  var earned = 0;
+
+  for (var i = 0; i < ACHIEVEMENTS.length; i++) {
+    var a = ACHIEVEMENTS[i];
+    var got = !!(game.unlocked && game.unlocked[a.id]);
+    if (got) { earned++; }
+    html +=
+      '<div class="achievement' + (got ? ' is-earned' : ' is-locked') + '">' +
+        '<span class="ach-icon" aria-hidden="true">' + a.icon + '</span>' +
+        '<span class="ach-body">' +
+          '<span class="ach-name">' + a.name + '</span>' +
+          '<span class="ach-blurb">' + a.blurb + '</span>' +
+        '</span>' +
+        '<span class="ach-state">' + (got ? 'Earned day ' + game.unlocked[a.id] : 'Locked') + '</span>' +
+      '</div>';
+  }
+
+  box.innerHTML =
+    '<p class="ach-summary">' + earned + ' of ' + ACHIEVEMENTS.length + ' earned. ' +
+    'These are badges - they are worth no points and change no outcome.</p>' +
+    html;
+}
+
 function buildReport() {
-  var alive = crewAlive();
   var done = objectivesDone();
+  var alive = crewAlive();
   var parts = [];
 
   var zone = (typeof zoneById === 'function') ? zoneById(game.zoneId) : null;
@@ -1619,14 +2687,33 @@ function buildReport() {
     parts.push('You landed at ' + zone.name + ' (' + zone.coords + ').');
   }
 
-  if (game.success) {
-    parts.push('Mission success. You completed all ' + OBJECTIVES.length +
-      ' objectives in ' + Math.min(game.day, MISSION_LENGTH_DAYS) + ' days.');
-  } else {
-    parts.push('Mission failed. ' + game.failReason + ' You completed ' + done + ' of ' +
-      OBJECTIVES.length + ' objectives.');
+  /* Phase 4: what the record actually says about this crater, so the
+     choice can be checked against the evidence after the fact. */
+  if (typeof lunarSiteSummary === 'function') {
+    var lunarNote = lunarSiteSummary(game.zoneId);
+    if (lunarNote) { parts.push(lunarNote); }
   }
 
+  /* ---- Phase 5: the one-paragraph explanation of the outcome ----
+     Placed first in the report so the player reads WHY before the
+     detail. It names the decisive fact, not a formula. */
+  parts.push(outcomeExplanation());
+
+  if (game.success) {
+    parts.push('Mission success. You completed all ' + primaryObjectivesTotal() +
+      ' required objectives in ' + Math.min(game.day, MISSION_LENGTH_DAYS) +
+      ' days, plus ' + optionalObjectivesDone() + ' of ' +
+      optionalObjectivesTotal() + ' optional ones.');
+  } else {
+    parts.push('Mission failed. ' + game.failReason + ' You completed ' +
+      primaryObjectivesDone() + ' of ' + primaryObjectivesTotal() +
+      ' required objectives and ' + done + ' in total.');
+  }
+
+  /* ---- Phase 5: the challenges, in one sentence ---- */
+  parts.push('You settled ' + challengesSettled() + ' of ' + CHALLENGES.length +
+    ' mission challenges and made ' + (game.repairsMade || 0) +
+    ' repair(s), with ' + (game.challengesFailed || 0) + ' failure(s).');
   if (alive === STARTING_CREW) {
     parts.push('All three astronauts returned in good condition.');
   } else if (alive === 0) {
@@ -1638,6 +2725,25 @@ function buildReport() {
 
   parts.push('You made ' + game.goodChoices + ' strong decision(s) and ' +
     game.badChoices + ' harmful one(s).');
+
+  /* ---- Phase 3: say what the base and the site actually did ---- */
+  if (game.lastBalance) {
+    parts.push('Your base averaged ' +
+      signed1(game.lastBalance.power) + ' power, ' +
+      signed1(game.lastBalance.oxygen) + ' oxygen, ' +
+      signed1(game.lastBalance.water) + ' water and ' +
+      signed1(game.lastBalance.food) + ' food a day on the last day. ' +
+      'These are game values, not NASA mission figures.');
+  }
+
+  var surveyedTotal = Object.keys(game.surveyed || {}).length;
+  parts.push('The crew logged ' + game.explored + ' canister(s) and inspected ' +
+    surveyedTotal + ' structure type(s).');
+
+  if (game.storms > 0) {
+    parts.push('The mission saw ' + game.storms + ' dust storm' +
+      (game.storms > 1 ? 's' : '') + '.');
+  }
 
   var lowestKey = 'oxygen';
   var lowestValue = game.oxygen;
@@ -1673,6 +2779,10 @@ function loadNasaData() {
   var statusBox = el('nasa-status');
   var listBox = el('nasa-list');
 
+  /* If the panel is not on the page there is nothing to fill, and the
+     mission must not depend on it. */
+  if (!statusBox || !listBox) { return; }
+
   statusBox.className = 'nasa-status';
   statusBox.textContent = 'Loading NASA Open Data...';
   listBox.innerHTML = '';
@@ -1684,53 +2794,52 @@ function loadNasaData() {
   }
 
   NASA_QUERIES.forEach(function (query) {
-    var url = NASA_API + '?q=' + encodeURIComponent(query) + '&media_type=image&page_size=1';
-
-    fetch(url)
-      .then(function (response) {
-        if (!response.ok) { throw new Error('HTTP ' + response.status); }
-        return response.json();
-      })
+    nasaFetch(nasaSearchUrl(query))
       .then(function (data) {
-        addNasaItem(data, query);
+        var found = nasaFirstResult(data);
+        /* A search that legitimately returns nothing is shown as an
+           empty result, not dressed up as a network failure. */
+        if (!found) { addNasaEmptyItem(query); return; }
+        addNasaItem(found, query);
       })
-      .catch(function () {
-        addNasaErrorItem(query);
+      .catch(function (err) {
+        addNasaErrorItem(query, err);
       });
   });
 }
 
-function addNasaItem(data, query) {
-  var items = data.collection && data.collection.items;
-  if (!items || items.length === 0 || !items[0].data || !items[0].data[0]) {
-    updateNasaStatus();
-    return;
-  }
-
-  var record = items[0].data[0];
-  var thumb = items[0].links && items[0].links[0] ? items[0].links[0].href : '';
-  var details = 'https://images.nasa.gov/details/' + encodeURIComponent(record.nasa_id);
+function addNasaItem(found, query) {
+  var listBox = el('nasa-list');
+  if (!listBox) { return; }
 
   var li = document.createElement('li');
-  li.innerHTML =
-    '<span class="n-title">' + cleanText(record.title) + '</span>' +
-    '<span class="n-note">NASA ID ' + cleanText(record.nasa_id) +
-      ' &middot; ' + cleanText(record.center) +
-      ' &middot; ' + formatDate(record.date_created) + '</span>' +
-    (thumb ? '<img class="n-thumb" src="' + cleanText(thumb) + '" alt="" loading="lazy">' : '') +
-    '<a class="n-link" href="' + details + '" target="_blank" rel="noopener">View on images.nasa.gov</a>' +
-    '<span class="n-note" style="margin-top:6px">Search term: "' + cleanText(query) + '"</span>';
-
-  el('nasa-list').appendChild(li);
+  li.innerHTML = nasaItemHtml(found, query);
+  listBox.appendChild(li);
   updateNasaStatus();
 }
 
-function addNasaErrorItem(query) {
+function addNasaEmptyItem(query) {
+  var listBox = el('nasa-list');
+  if (!listBox) { return; }
+  var li = document.createElement('li');
+  li.innerHTML =
+    '<span class="n-title">No images for "' + cleanText(query) + '"</span>' +
+    '<span class="n-note">NASA\'s library has nothing matching this search. ' +
+    'Try a different term on images.nasa.gov.</span>';
+  listBox.appendChild(li);
+  updateNasaStatus();
+}
+
+function addNasaErrorItem(query, err) {
+  var listBox = el('nasa-list');
+  if (!listBox) { return; }
+  var reason = (err && err.message) ? cleanText(err.message) : 'network error';
   var li = document.createElement('li');
   li.innerHTML =
     '<span class="n-title">Could not load "' + cleanText(query) + '"</span>' +
-    '<span class="n-note">No internet connection, or the NASA service is unavailable. The mission does not depend on this.</span>';
-  el('nasa-list').appendChild(li);
+    '<span class="n-note">' + reason +
+    ' The mission does not depend on this, and everything else still works.</span>';
+  listBox.appendChild(li);
   updateNasaStatus();
 }
 
@@ -1758,6 +2867,193 @@ function formatDate(iso) {
                 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   var month = months[Number(parts[1]) - 1] || parts[1];
   return parts[0] + ' ' + month + ' ' + parts[2];
+}
+
+/* ============================================================
+   16b. PHASE 4 - A REAL PHOTOGRAPH OF THE CRATER YOU PICKED
+   ------------------------------------------------------------
+   When a landing site is chosen, the map asks NASA's own library for
+   a picture of that actual crater. The search term comes from
+   lunar-data.js, which holds the IAU-approved name, so this searches
+   for "Shackleton" and not "Shackleton crater surface mission" by
+   accident.
+
+   WHAT THIS IS NOT
+   ----------------
+   This is imagery and its catalogue metadata. It is NOT a scientific
+   measurement. The library carries titles, descriptions and credits;
+   it does not carry elevation, slope or illumination numbers, and
+   nothing in this section treats it as though it did.
+
+   NO SECRETS
+   ---------
+   This endpoint is public and needs no key, so there is nothing to
+   hide and nothing to leak. Do not add one.
+   ============================================================ */
+
+/* How long to wait before giving up and telling the player why. A slow
+   connection should end in an explanation, not a spinner that never
+   stops. */
+var NASA_TIMEOUT_MS = 12000;
+
+/* The last site asked for, so a slow reply for an old site cannot
+   overwrite the card for the one the player is actually looking at. */
+var nasaSiteRequested = null;
+
+function nasaSearchUrl(query) {
+  return NASA_API + '?q=' + encodeURIComponent(query) +
+         '&media_type=image&page_size=1';
+}
+
+/* One fetch, with a timeout. Resolves with the parsed JSON, or
+   rejects with a short reason the UI can show. */
+function nasaFetch(url, ms) {
+  return new Promise(function (resolve, reject) {
+    if (typeof fetch !== 'function') {
+      reject(new Error('This browser cannot make network requests.'));
+      return;
+    }
+
+    var settled = false;
+    var controller = (typeof AbortController === 'function') ? new AbortController() : null;
+    var timer = null;
+
+    function finish(fn, arg) {
+      if (settled) { return; }
+      settled = true;
+      if (timer) { clearTimeout(timer); }
+      fn(arg);
+    }
+
+    if (controller) {
+      timer = setTimeout(function () {
+        try { controller.abort(); } catch (e) { /* older browsers */ }
+        finish(reject, new Error('Timed out after ' + Math.round((ms || NASA_TIMEOUT_MS) / 1000) +
+          ' seconds. The connection is too slow right now.'));
+      }, ms || NASA_TIMEOUT_MS);
+    }
+
+    fetch(url, controller ? { signal: controller.signal } : undefined)
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error('NASA returned HTTP ' + response.status + '.');
+        }
+        return response.json();
+      })
+      .then(function (data) { finish(resolve, data); })
+      .catch(function (err) {
+        if (err && err.name === 'AbortError') { return; }   /* already reported */
+        finish(reject, new Error(err && err.message ? err.message : 'Could not reach NASA.'));
+      });
+  });
+}
+
+/* Pull the first usable image out of a search response, or null. */
+function nasaFirstResult(data) {
+  var items = data && data.collection && data.collection.items;
+  if (!items || items.length === 0) { return null; }
+  if (!items[0].data || !items[0].data[0]) { return null; }
+  return {
+    record: items[0].data[0],
+    thumb: items[0].links && items[0].links[0] ? items[0].links[0].href : ''
+  };
+}
+
+/* One result card. Shared by the general panel and the per-site panel
+   so the attribution looks identical in both. */
+/* A tiny local escaper for a URL we built ourselves. The only untrusted
+   strings reaching the NASA panel come from NASA's own API, but a
+   broken response should never be able to inject markup into the
+   page, and every href has to be an http(s) URL and nothing else. */
+function safeHttpUrl(url) {
+  var s = String(url === undefined || url === null ? '' : url);
+  if (!/^https?:\/\//i.test(s)) { return '#'; }
+  return s.replace(/"/g, '%22').replace(/</g, '%3C').replace(/>/g, '%3E');
+}
+
+function nasaItemHtml(found, contextLabel, extraClass) {
+  var record = found.record;
+  var details = 'https://images.nasa.gov/details/' + encodeURIComponent(record.nasa_id);
+
+  return '<li class="nasa-item' + (extraClass ? ' ' + extraClass : '') + '">' +
+    '<span class="n-title">' + cleanText(record.title) + '</span>' +
+    '<span class="n-note">' +
+      'NASA ID ' + cleanText(record.nasa_id) +
+      (record.center ? ' &middot; ' + cleanText(record.center) : '') +
+      ' &middot; ' + formatDate(record.date_created) +
+    '</span>' +
+    (found.thumb
+      ? '<img class="n-thumb" src="' + safeHttpUrl(found.thumb) + '" alt="" loading="lazy" ' +
+        'onerror="this.style.display=\'none\'">'
+      : '') +
+    '<a class="n-link" href="' + safeHttpUrl(details) + '" target="_blank" rel="noopener">View on images.nasa.gov</a>' +
+    '<span class="n-credit">Image: NASA Image and Video Library' +
+      (record.center ? ' / ' + cleanText(record.center) : '') +
+      ' &middot; NASA ID ' + cleanText(record.nasa_id) + '</span>' +
+    (contextLabel ? '<span class="n-note">Search term: "' + cleanText(contextLabel) + '"</span>' : '') +
+  '</li>';
+}
+
+function nasaSiteStatus(message, cls) {
+  var box = el('site-images');
+  if (!box) { return; }
+  box.className = 'site-images';
+  box.innerHTML = '<p class="site-images-status' + (cls ? ' ' + cls : '') + '">' + message + '</p>';
+}
+
+/* Fetch one real photograph of the selected crater. Called from the map
+   after the site card is already on screen, so nothing here can make
+   the map feel slow. */
+function loadSiteImage(zone) {
+  if (!zone) { return; }
+  var box = el('site-images');
+  if (!box) { return; }
+
+  var name = (typeof lunarSearchName === 'function') ? lunarSearchName(zone) : zone.name;
+  if (!name) { return; }
+
+  nasaSiteRequested = zone.id;
+  nasaSiteStatus('Looking for a NASA photograph of ' + cleanText(name) + '...', 'is-loading');
+
+  /* The search term is the bare crater name. That was tested against
+     the live API: "tycho" returns a real Tycho image, while
+     "tycho moon" returns a generic picture of Earth and the Moon, and
+     the polar craters return nothing at all under any phrasing. So
+     the honest answer for most of this map is "the archive does not
+     have one", which is what the panel below says. */
+  nasaFetch(nasaSearchUrl(name))
+    .then(function (data) {
+      if (nasaSiteRequested !== zone.id) { return; }
+
+      var found = nasaFirstResult(data);
+
+      /* An empty result is not an error, and it is not the fault of
+         this game: NASA's library really does not hold a photograph of
+         this crater. Say so, and hand over a link so the player can
+         keep looking. */
+      if (!found) {
+        var link = 'https://images.nasa.gov/search?q=' + encodeURIComponent(name);
+        nasaSiteStatus(
+          'NASA\'s Image and Video Library has no photograph of ' + cleanText(name) + '. ' +
+          'That is a real gap in the archive - most of these polar craters have never been ' +
+          'photographed from close range - not a fault in this game. ' +
+          'Try <a href="' + safeHttpUrl(link) + '" target="_blank" rel="noopener">searching images.nasa.gov yourself</a>.',
+          'is-empty');
+        return;
+      }
+
+      box.className = 'site-images';
+      box.innerHTML =
+        '<h4 class="site-images-head">A real place <span class="tag tag-fact">NASA IMAGE</span></h4>' +
+        '<ul class="nasa-list">' + nasaItemHtml(found, name, 'nasa-item-featured') + '</ul>';
+    })
+    .catch(function (err) {
+      if (nasaSiteRequested !== zone.id) { return; }
+      nasaSiteStatus(
+        'Could not load the photograph: ' + cleanText(err && err.message ? err.message : 'network error') +
+        ' The map and the game still work normally.',
+        'is-error');
+    });
 }
 
 /* ------------------------------------------------------------
@@ -1863,7 +3159,59 @@ function wireUp() {
    SECTION 18: START THE GAME WHEN THE PAGE LOADS
    ------------------------------------------------------------ */
 
+/* Phase 5 is optional, in the same way world.js and mission.js are.
+
+   challenges.js adds challenges, badges and optional objectives. If it
+   is ever missing, the six required objectives are still a complete
+   mission - the player simply does not get the extras. Everything the
+   rest of this file calls from that module is stubbed here, once, so
+   there is exactly one place that has to know.
+
+   Every stub returns the safe, empty answer. None of them can invent a
+   challenge, a badge or an objective that is not really there. */
+if (typeof challengesSettled !== 'function') {
+  var CHALLENGES = [];
+  function challengesSettled() { return 0; }
+  function challengeHistory() { return []; }
+  function challengeOutcomeText() { return ''; }
+  function challengesAtHost() { return []; }
+  function activeChallengeHost() { return null; }
+  function achievementsUnlocked() { return []; }
+}
+
 game = createNewGame();
+
+/* Phase 3 state is owned by mission.js. It is merged in rather than
+   written here so the numbers that drive the simulation all live in
+   one place, and so this file still works if that file is ever
+   missing. */
+function applyMissionState(state) {
+  if (!state) { return; }
+  game.maint = state.maint || {};
+  game.faults = state.faults || {};
+  game.pendingEmergency = state.pendingEmergency || null;
+  game.explored = state.explored || 0;
+  game.surveyed = state.surveyed || {};
+  game.lastBalance = state.lastBalance || null;
+  game.storms = state.storms || 0;
+}
+
+/* Phase 5 state, merged the same way. Reached only from startMission()
+   and from the page-load bootstrap, so there is one place that decides
+   what a fresh mission looks like. */
+function applyChallengeState(state) {
+  if (!state) { return; }
+  game.challenges = state.challenges || {};
+  game.awarded = state.awarded || {};
+  game.unlocked = state.unlocked || {};
+  game.repairsMade = state.repairsMade || 0;
+  game.emergenciesHandled = state.emergenciesHandled || 0;
+  game.challengesFailed = state.challengesFailed || 0;
+  game.lowestSeen = state.lowestSeen || {};
+}
+applyMissionState((typeof missionNewState === 'function') ? missionNewState() : null);
+applyChallengeState((typeof challengeNewState === 'function') ? challengeNewState() : null);
+
 wireUp();
 wireUpMap();
 showScreen('welcome');
