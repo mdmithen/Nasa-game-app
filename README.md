@@ -3,7 +3,7 @@
 **Manage Your Moon Base. Protect Your Crew.**
 
 An educational browser game where you command a small lunar outpost, keep three
-astronauts alive, and complete six mission objectives in 12 days.
+astronauts alive, and complete six mission objectives in 16 days.
 
 Built with plain HTML, CSS and JavaScript. No frameworks, no build step, no backend,
 no API keys, no install. Double-click `index.html` and play.
@@ -28,18 +28,67 @@ Chrome, Edge or Firefox.
 
 | File | What it does |
 |---|---|
-| `index.html` | All five screens: welcome, how to play, learn, dashboard, results |
+| `index.html` | All five screens: welcome, how to play, learn, the playable Moon Base, results |
 | `style.css` | The dark space theme, resource cards, the CSS-drawn Moon base, every keyframe |
-| `script.js` | The whole game: rules, events, resource maths, scoring, NASA panel |
+| `script.js` | All the **rules**: settings, events, resource maths, scoring, the station bridge, the NASA panel |
+| `world.js` | All the **drawing and movement**: the structure catalogue, terrain, astronaut, physics, camera |
+| `sprites.js` | Generated frame map — where each frame sits inside `assets/sprites.png` |
 | `fx.js` | Animations only — the canvas space background and all UI motion |
+| `assets/sprites.png` | The one image file. Astronaut and structure artwork |
+| `tools/make-sprites.html` | Draws the sprite sheet in a browser |
+| `build-sprites.js` | Development tool: runs the above in headless Chrome and saves the PNG + `sprites.js` |
 | `README.md` | This file |
 
 **`fx.js` never touches the game.** It contains no rules, no numbers and no
 scoring. If you delete it the game still plays perfectly, just without motion.
 
-There is no `assets/` folder on purpose. The Moon base, the astronaut, the habitat
-dome and the solar panel are all drawn with plain CSS and one Canvas, so there are no
-image files that can fail to load and no broken layout when you are offline.
+**`script.js` never draws and `world.js` never decides.** `world.js` reads the
+mission state from `game` and calls back into `script.js` when the player
+reaches a structure. Every change to oxygen, water, food, power or the score
+still happens in `script.js` and nowhere else.
+
+The welcome screen is still drawn entirely with CSS, so it needs no image
+files. The playable Moon Base does use one PNG, and if it is ever missing the
+game falls back to drawing simple shapes instead — see `fallbackAstronaut()` and
+`fallbackStation()` in `world.js`. Nothing breaks when you are offline.
+
+### 2c. Sprites
+
+Artwork lives in one place only. To change a sprite:
+
+1. edit the drawing code in `tools/make-sprites.html`
+2. run `node build-sprites.js`
+
+That regenerates `assets/sprites.png` **and** `sprites.js` together, so the
+frame numbers can never drift apart. `sprites.js` says *do not edit by hand*.
+
+### 2d. Structures and the base layout
+
+`world.js` keeps two separate things, and keeping them apart is what lets a
+base be designed before the mission starts:
+
+| | What it is | Where |
+|---|---|---|
+| `STATION_TYPES` | The catalogue. **What** a structure is: name, sprite, and `limit` — how many of it one base may hold | `world.js` |
+| `baseLayout` | The player's base. **Where** the structures stand: one `{uid, type, x}` per placed structure | `world.js` |
+| `STATIONS` | The two combined. Never edited by hand; rebuilt by `buildStations()` | `world.js` |
+
+`STATIONS[i].id` is unique to that one placed structure, so a base may hold two
+depots. `STATIONS[i].type` is what kind of structure it is, and that is what
+`EVENT_STATION`, `STATION_SERVICE`, `STATION_STATUS` and `game.serviced` are
+keyed by — so the mission marker appears on both depots, but the depot type can
+only be serviced once per mission.
+
+Critical life-support systems (`habitat`, `oxygen`, `water`, `food`, `console`)
+have `limit: 1`, because a second oxygen plant would not give the crew anything
+extra. Solar panels and supply depots have `limit: 3`.
+
+`script.js` copies the planned base into the mission once, in `applyBase()`.
+After that `game.layout` is the base and nothing looks back at the plan, so the
+simulation cannot be changed halfway through by something upstream.
+
+Rocks are generated clear of every placed structure (`clearOfStations()`), so a
+structure can never be built on top of terrain the player cannot see.
 
 ---
 
@@ -102,7 +151,7 @@ the whole visual layer is built from things already inside the browser:
 
 ### The goal
 
-Keep all three astronauts healthy for **12 mission days** and finish all **6 objectives**.
+Keep all three astronauts healthy for **16 mission days** and finish all **6 objectives**.
 
 ### The daily cycle
 
@@ -124,7 +173,7 @@ members is heavily punished in the final score, so it is never worth doing on pu
 | Water reaches 0 | Mission failed |
 | Food reaches 0 | Mission failed |
 | Crew health reaches 0 | Mission failed, crew lost |
-| Day 13 arrives with objectives unfinished | Mission failed, time expired |
+| Day 17 arrives with objectives unfinished | Mission failed, time expired |
 
 There is no way to stall. The game always ends.
 
@@ -330,8 +379,8 @@ emulation) and in Node.js:
 - All **11 events**, and **every one of the 32 options**, can be chosen without
   errors
 - Winning: completing all six objectives ends the mission in success on day 12
-- Losing: oxygen, water, food, health and the 12-day time limit all end the mission
-- Doing nothing at all still ends the mission on day 13 — the game cannot stall
+- Losing: oxygen, water, food, health and the 16-day time limit all end the mission
+- Doing nothing at all still ends the mission on day 17 — the game cannot stall
 - Restart returns every resource, modifier, objective, score and the day counter to
   their starting values, and a second full mission can then be played
 - Double-clicking an option or **Continue to Next Day** is ignored
@@ -347,6 +396,35 @@ emulation) and in Node.js:
 - **`prefers-reduced-motion`** is detected, still draws the sky as one static frame,
   keeps all Learn cards visible, and the game still starts and plays
 - **No Canvas 2D support** — the page loads and the game is still fully playable
+
+### 7a. Phase 0 base-layout work
+
+Re-tested after making the base layout-driven (47 automated checks, 0 failures,
+no JavaScript errors):
+
+- All 7 catalogue entries exist, with `limit: 1` on the five critical systems and
+  `limit: 3` on solar panels and supply depots
+- The 7 starting structures build at exactly the positions they used before, and
+  all 6 rocks, 7 crates and 8 pickups are unchanged — the opening scene is identical
+- A rock that would sit under a placed structure is removed, so a layout can never
+  hide terrain behind a building
+- Two depots and two solar arrays build together with no id collisions; the mission
+  marker flags both depots, and the depot type can still only be serviced once
+- `showScreen()` reads the screens from the page, so adding a `<section class="screen">`
+  to `index.html` is enough for a new screen to appear — verified by injecting a
+  test screen at runtime
+- The astronaut still walks, jumps the full lunar arc and lands; physics constants
+  in `CFG` are untouched
+- The standing repair animation now actually plays, and keeps playing while the
+  station panel freezes the astronaut (it was overwritten by the idle pose on the
+  next frame before)
+- Station panels resolve by unique id; day 2 still offers 3 options at the solar
+  array; choosing one completes `obj-power` and disables the buttons
+- A non-resource entry in the day log is skipped instead of throwing
+- Restart resets the day, the serviced list, and the full 7-structure base
+- **The rendered world is byte-for-byte identical to the previous version** at four
+  different camera positions, compared by SHA-256 with the clock, particles, stars
+  and pickups pinned
 
 ### Still worth checking by hand
 

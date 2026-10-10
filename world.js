@@ -87,28 +87,111 @@ var CFG = {
 
   camHeadMargin: 22,     /* pixels kept between the helmet and the top edge */
 
-  stationSpacing: 320
+  /* How much room one placed structure takes on the ground. A station
+     sprite is 96 pixels wide and drawn centred on its x, so the half
+     width is 48. Terrain keeps this far away from that box, which is
+     what stops a rock from ever appearing underneath a structure. */
+  stationHalfWidth: 48,
+  stationClearance: 36
 };
 
 /* ------------------------------------------------------------
-   2. THE STATIONS
-   `event` links a station to the mission scenario that happens
-   there, so the correct station gets the glowing marker.
+   2. THE STRUCTURE CATALOG AND THE BASE LAYOUT
+   There are two separate things here, and keeping them apart is what
+   lets a base be designed before the mission starts:
+
+     STATION_TYPES  - the catalogue. WHAT a structure is: its name,
+                      its sprite and how many of it one base may hold.
+                      There is deliberately no position in here.
+
+     baseLayout     - the player's base. WHERE the structures stand:
+                      one entry per placed structure.
+
+   STATIONS below is built from the two, and is what the rest of this
+   file (and script.js) actually walks around and draws. It is never
+   edited by hand.
    ------------------------------------------------------------ */
 
-var STATIONS = [
-  { id: 'habitat', name: 'Habitat',            x: 300,  sprite: 'station_habitat', blurb: 'Crew quarters and life support.' },
-  { id: 'oxygen',  name: 'Oxygen System',      x: 620,  sprite: 'station_oxygen',  blurb: 'Makes and stores breathable air.' },
-  { id: 'water',   name: 'Water Recycler',     x: 940,  sprite: 'station_water',   blurb: 'Cleans and reuses water.' },
-  { id: 'food',    name: 'Food Station',       x: 1260, sprite: 'station_food',    blurb: 'Hydroponics and food stores.' },
-  { id: 'solar',   name: 'Solar Panels',       x: 1580, sprite: 'station_solar_ok', solar: true, blurb: 'Turns sunlight into electricity.' },
-  { id: 'depot',   name: 'Supply Depot',       x: 1900, sprite: 'station_depot',   blurb: 'Spare parts, rations and the rover.' },
-  { id: 'console', name: 'Mission Console',    x: 2220, sprite: 'station_console', blurb: 'Mission objectives and status.' }
+/* `limit` is how many of that type a single base may hold. Critical
+   life-support systems are capped at 1 because a second oxygen plant
+   or a second mission console would not give the crew anything extra.
+   Solar arrays and supply depots scale with a bigger base, so more
+   than one of those is allowed. */
+var STATION_TYPES = [
+  { id: 'habitat', name: 'Habitat',         limit: 1, sprite: 'station_habitat', blurb: 'Crew quarters and life support.' },
+  { id: 'oxygen',  name: 'Oxygen System',   limit: 1, sprite: 'station_oxygen',  blurb: 'Makes and stores breathable air.' },
+  { id: 'water',   name: 'Water Recycler',  limit: 1, sprite: 'station_water',   blurb: 'Cleans and reuses water.' },
+  { id: 'food',    name: 'Food Station',    limit: 1, sprite: 'station_food',    blurb: 'Hydroponics and food stores.' },
+  { id: 'solar',   name: 'Solar Panels',    limit: 3, sprite: 'station_solar_ok', solar: true, blurb: 'Turns sunlight into electricity.' },
+  { id: 'depot',   name: 'Supply Depot',    limit: 3, sprite: 'station_depot',   blurb: 'Spare parts, rations and the rover.' },
+  { id: 'console', name: 'Mission Console', limit: 1, sprite: 'station_console', blurb: 'Mission objectives and status.' }
 ];
 
-/* Which scenario happens at which station, and what a plain
+/* Fast lookup by type id, so resolving a layout entry never walks the
+   whole catalogue. */
+var STATION_TYPE_INDEX = {};
+for (var t = 0; t < STATION_TYPES.length; t++) {
+  STATION_TYPE_INDEX[STATION_TYPES[t].id] = STATION_TYPES[t];
+}
+
+/* The base the player starts with, in the same order and at the same
+   places as the old hard-coded station list, so the opening scene is
+   unchanged. A later phase lets the player move these around. */
+var DEFAULT_LAYOUT = [
+  { uid: 'built-1', type: 'habitat', x: 300 },
+  { uid: 'built-2', type: 'oxygen',  x: 620 },
+  { uid: 'built-3', type: 'water',   x: 940 },
+  { uid: 'built-4', type: 'food',    x: 1260 },
+  { uid: 'built-5', type: 'solar',   x: 1580 },
+  { uid: 'built-6', type: 'depot',   x: 1900 },
+  { uid: 'built-7', type: 'console', x: 2220 }
+];
+
+/* The base as it stands right now. world.applyLayout() replaces it. */
+var baseLayout = [];
+
+/* The placed structures, derived from the catalogue and the layout.
+   `id` is the unique id of that one placed structure, and `type` is
+   what kind of structure it is. Which scenario a day hosts is decided
+   by type, so a base with two depots shows the marker on both. */
+var STATIONS = [];
+
+function copyLayout(list) {
+  var out = [];
+  for (var i = 0; i < list.length; i++) {
+    out.push({ uid: list[i].uid, type: list[i].type, x: list[i].x });
+  }
+  return out;
+}
+
+function buildStations() {
+  /* emptied in place, never reassigned, so anything already holding a
+     reference to this array keeps seeing the current base */
+  STATIONS.length = 0;
+
+  for (var i = 0; i < baseLayout.length; i++) {
+    var item = baseLayout[i];
+    var type = STATION_TYPE_INDEX[item.type];
+
+    /* An unknown type is skipped rather than thrown, so a bad saved
+       layout can never stop the game from starting. */
+    if (!type) { continue; }
+
+    STATIONS.push({
+      id: item.uid,             /* unique to this one structure */
+      type: item.type,          /* what kind it is             */
+      name: type.name,
+      sprite: type.sprite,
+      solar: !!type.solar,
+      blurb: type.blurb,
+      x: item.x
+    });
+  }
+}
+
+/* Which scenario happens at which structure type, and what a plain
    service visit does, are decided in script.js (the rules file).
-   This file only draws the stations and moves the player. */
+   This file only draws the structures and moves the player. */
 
 /* ------------------------------------------------------------
    3. SPRITES
@@ -211,6 +294,7 @@ var hero = {
   jumpType: 'jump_rise',
   landTimer: 0,
   landPower: 0,        /* how hard the landing was, 0 to 1 */
+  workTimer: 0,        /* frames of the standing repair animation left */
   coyote: 0,
   takeoff: 0,          /* frames of the soft push-off left in a jump */
   jumpBuffer: 0,       /* a jump press waiting for the ground */
@@ -230,19 +314,38 @@ var platforms = [];
 var pickups = [];
 var particles = [];
 
+/* True when a piece of ground of this width at this x would not run
+   into any placed structure. */
+function clearOfStations(x, w) {
+  var left = x - CFG.stationClearance;
+  var right = x + w + CFG.stationClearance;
+  for (var i = 0; i < STATIONS.length; i++) {
+    var s = STATIONS[i];
+    var sLeft = s.x - CFG.stationHalfWidth;
+    var sRight = s.x + CFG.stationHalfWidth;
+    if (right > sLeft && left < sRight) { return false; }
+  }
+  return true;
+}
+
 function buildTerrain() {
   solids = [];
   platforms = [];
   pickups = [];
   particles = [];
 
-  /* Rocks you have to jump over. Kept clear of every station. */
+  /* Rocks you have to jump over. A candidate that would end up sitting
+     under a placed structure is skipped, so no matter how the base is
+     laid out the player never sees terrain hidden behind a building.
+     With the starting layout none of these are skipped and the scene
+     is exactly what it always was. */
   var rockData = [
     { x: 140, w: 38, h: 22 }, { x: 470, w: 54, h: 34 }, { x: 1090, w: 44, h: 26 },
     { x: 1420, w: 62, h: 40 }, { x: 1750, w: 40, h: 24 }, { x: 2060, w: 52, h: 32 }
   ];
   for (var i = 0; i < rockData.length; i++) {
     var r = rockData[i];
+    if (!clearOfStations(r.x, r.w)) { continue; }
     solids.push({ x: r.x, y: CFG.groundY - r.h, w: r.w, h: r.h });
   }
 
@@ -873,7 +976,7 @@ function drawPickups(ctx, camX) {
   }
 }
 
-/* --- the stations themselves --- */
+/* --- the structures themselves --- */
 function drawStations(ctx, camX) {
   for (var i = 0; i < STATIONS.length; i++) {
     var s = STATIONS[i];
@@ -903,8 +1006,9 @@ function drawStations(ctx, camX) {
     ctx.fillText(s.name, x, CFG.groundY + 22);
     ctx.restore();
 
-    /* a mission marker if today's scenario happens here */
-    if (game && game.stationEvent === s.id && !game.finished) {
+    /* a mission marker on every structure of the type that hosts
+       today's scenario, so a base with two depots flags both */
+    if (game && game.stationEvent === s.type && !game.finished) {
       drawMarker(ctx, x, CFG.groundY - 108, t);
     }
   }
@@ -1138,8 +1242,25 @@ function worldLoop(now) {
     nearbyStation = nearestStation();
   }
 
+  /* The repair animation runs on the loop itself rather than inside
+     updateHero, because the astronaut is frozen while the panel that
+     triggered it is open. Running it last also means it wins over the
+     walk and idle poses for exactly as long as it lasts. */
+  if (!world.paused) { tickWorkAnim(); }
+
   render();
   world.loopHandle = window.requestAnimationFrame(worldLoop);
+}
+
+/* Count down the standing repair animation. */
+function tickWorkAnim() {
+  if (hero.workTimer > 0) {
+    hero.workTimer--;
+    hero.state = 'work';
+  } else if (hero.state === 'work' && Math.abs(hero.vx) <= CFG.walkSpeedForAnim) {
+    /* only step back to idle if the astronaut is not already moving */
+    hero.state = 'idle';
+  }
 }
 
 function resizeWorld() {
@@ -1199,6 +1320,7 @@ world.reset = function () {
   hero.idleTimer = 0;
   hero.landTimer = 0;
   hero.landPower = 0;
+  hero.workTimer = 0;
   hero.coyote = CFG.coyoteTime;
   hero.takeoff = 0;
   hero.jumpBuffer = 0;
@@ -1218,14 +1340,29 @@ world.reset = function () {
 
   nearbyStation = null;
   t = 0;
+  buildStations();
   buildTerrain();
   buildStars();
   if (typeof setPausedUI === 'function') { setPausedUI(false); }
 };
 
-/* Tell the world which station hosts today's mission. */
-world.setStationEvent = function (stationId) {
-  world.stationEvent = stationId;
+/* Put a base on the surface. Anything without a usable layout falls
+   back to the starting one, so the world is never left empty. */
+world.applyLayout = function (layout) {
+  baseLayout = (layout && layout.length) ? copyLayout(layout) : copyLayout(DEFAULT_LAYOUT);
+  buildStations();
+  buildTerrain();
+  return baseLayout;
+};
+
+/* The base currently on the surface, as a fresh copy. */
+world.currentLayout = function () {
+  return copyLayout(baseLayout);
+};
+
+/* Tell the world which kind of structure hosts today's mission. */
+world.setStationEvent = function (stationType) {
+  world.stationEvent = stationType;
 };
 
 /* Small shake used by repair effects. */
@@ -1233,15 +1370,13 @@ world.bump = function (amount) {
   camera.shake = Math.min(camera.shake + amount, 7);
 };
 
-/* Show the working animation for a moment. */
+/* Show the working animation for a moment. The frames are counted
+   down by tickWorkAnim on the main loop, so the pose survives for the
+   whole animation instead of being replaced by the idle pose on the
+   very next frame. */
 world.playWork = function (frames) {
+  hero.workTimer = frames || 40;
   hero.state = 'work';
-  var left = frames || 40;
-  (function tick() {
-    if (left <= 0 || world.paused) { hero.state = 'idle'; return; }
-    left--;
-    window.setTimeout(tick, 16);
-  })();
 };
 
 /* ------------------------------------------------------------
@@ -1249,7 +1384,7 @@ world.playWork = function (frames) {
    ------------------------------------------------------------ */
 
 loadSprites();
-buildTerrain();
+world.applyLayout(DEFAULT_LAYOUT);   /* structures first: terrain keeps clear of them */
 buildStars();
 setupInput();
 
@@ -1279,3 +1414,5 @@ setupInput();
 window.world = world;
 window.hero = hero;
 window.STATIONS = STATIONS;
+window.STATION_TYPES = STATION_TYPES;
+window.DEFAULT_LAYOUT = DEFAULT_LAYOUT;

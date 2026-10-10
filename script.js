@@ -588,7 +588,8 @@ var SCHEDULE = {
    4b. WHERE EACH EVENT HAPPENS IN THE 2D WORLD
    The scenario for a day is not shown as a popup. It waits at its
    station with a glowing marker until the astronaut walks over
-   and presses E. This table says which station hosts which event.
+   and presses E. This table says which KIND of structure hosts
+   which event, so a base with two depots flags both of them.
    ------------------------------------------------------------ */
 
 var EVENT_STATION = {
@@ -605,9 +606,13 @@ var EVENT_STATION = {
   rover: 'depot'
 };
 
-/* What a plain "service" visit does at each station.
-   It can be done once per station per mission, so it cannot be
-   farmed for free resources. */
+/* What a plain "service" visit does at each kind of structure.
+   It can be done once per kind per mission, so it cannot be farmed
+   for free resources.
+
+   These keys are structure TYPES, not the id of one placed
+   structure, so a base holding two depots still services the depot
+   type only once. */
 var STATION_SERVICE = {
   habitat: {
     label: 'Rest the crew and run a medical check',
@@ -646,39 +651,68 @@ var STATION_SERVICE = {
   }
 };
 
-/* Plain English status shown when you visit a station. */
+/* How many of a structure type this base actually has, for the
+   readouts below. */
+function builtCount(type) {
+  if (!game || !game.layout) { return 0; }
+  var n = 0;
+  for (var i = 0; i < game.layout.length; i++) {
+    if (game.layout[i].type === type) { n++; }
+  }
+  return n;
+}
+
+/* A short note about how many of this structure the base holds, and
+   how many it is allowed. Only types that can be repeated are worth
+   saying, so a single habitat stays quiet. */
+function placedNote(station) {
+  var type = (typeof STATION_TYPE_INDEX !== 'undefined')
+    ? STATION_TYPE_INDEX[station.type] : null;
+  if (!type || type.limit <= 1) { return ''; }
+  return ' This base has ' + builtCount(station.type) +
+         ' of these, out of the ' + type.limit + ' a base may hold.';
+}
+
+/* Plain English status shown when you visit a structure. */
 var STATION_STATUS = {
-  habitat: function () {
+  habitat: function (station) {
     return 'Crew health is ' + Math.round(game.health) + ' out of 100. ' +
-           crewAlive() + ' of ' + STARTING_CREW + ' astronauts are fit for duty.';
+           crewAlive() + ' of ' + STARTING_CREW + ' astronauts are fit for duty.' +
+           placedNote(station);
   },
-  oxygen: function () {
+  oxygen: function (station) {
     return 'Oxygen store is ' + Math.round(game.oxygen) + ' out of 100. ' +
-           'Breathing oxygen in use: ' + Math.round(DAILY_OXYGEN_USE) + ' per day.';
+           'Breathing oxygen in use: ' + Math.round(DAILY_OXYGEN_USE) + ' per day.' +
+           placedNote(station);
   },
-  water: function () {
+  water: function (station) {
     return 'Water supply is ' + Math.round(game.water) + ' out of 100. ' +
            (game.mods.waterRecovery > 0
              ? 'The recycling loop is running and returning ' + game.mods.waterRecovery + ' a day.'
-             : 'The recycling loop is NOT running, so every drop used is lost.');
+             : 'The recycling loop is NOT running, so every drop used is lost.') +
+           placedNote(station);
   },
-  food: function () {
+  food: function (station) {
     return 'Food supply is ' + Math.round(game.food) + ' out of 100. ' +
            (game.mods.foodProduction > 0
              ? 'Hydroponics are producing ' + game.mods.foodProduction + ' a day.'
-             : 'Hydroponics are not producing, so the stores only shrink.');
+             : 'Hydroponics are not producing, so the stores only shrink.') +
+           placedNote(station);
   },
-  solar: function () {
+  solar: function (station) {
     var pct = Math.round(game.mods.solarFactor * 100);
     return 'Electricity is ' + Math.round(game.power) + ' out of 100. ' +
-           'The array is running at ' + pct + '% of normal output.';
+           'The array is running at ' + pct + '% of normal output.' +
+           placedNote(station);
   },
-  depot: function () {
-    return 'Spare parts and rations for the whole crew. A good place to resupply.';
+  depot: function (station) {
+    return 'Spare parts and rations for the whole crew. A good place to resupply.' +
+           placedNote(station);
   },
-  console: function () {
+  console: function (station) {
     return objectivesDone() + ' of ' + OBJECTIVES.length +
-           ' objectives are complete on mission day ' + game.day + '.';
+           ' objectives are complete on mission day ' + game.day + '.' +
+           placedNote(station);
   }
 };
 
@@ -706,10 +740,11 @@ function createNewGame() {
     failReason: '',
     decisionLocked: false,
     advancing: false,
-    stationEvent: null,        // station id hosting today's scenario
+    layout: null,         // the base: [{uid, type, x}]. set by applyBase()
+    stationEvent: null,        // station type hosting today's scenario
     stationEventKey: null,     // which scenario that is
     stationOpen: false,        // is a station panel on screen?
-    serviced: {},              // station id -> true once serviced
+    serviced: {},              // station type -> true once serviced
     pickupsCollected: 0,
     mods: {
       solarFactor: 1,             // permanent solar output multiplier
@@ -794,10 +829,15 @@ function el(id) {
    SECTION 8: MOVING BETWEEN SCREENS
    ------------------------------------------------------------ */
 
+/* Every screen in index.html is a <section class="screen" id="screen-NAME">.
+   Reading them from the page instead of keeping a list here means a new
+   screen can never be added and then silently never appear, which is
+   what a hard-coded list used to risk. fx.js wraps this function and
+   still works, because it looks screens up the same way. */
 function showScreen(name) {
-  var screens = ['welcome', 'howto', 'learn', 'game', 'result'];
+  var screens = document.querySelectorAll('.screen');
   for (var i = 0; i < screens.length; i++) {
-    el('screen-' + screens[i]).hidden = (screens[i] !== name);
+    screens[i].hidden = (screens[i].id !== 'screen-' + name);
   }
   window.scrollTo(0, 0);
 }
@@ -1122,6 +1162,10 @@ function showResult(config) {
   for (var i = 0; i < config.entries.length; i++) {
     var entry = config.entries[i];
     var info = RESOURCES[entry.key];
+    /* The day log also carries non-resource notes, such as walking
+       away from a station without a task. Those have no bar to show,
+       so they are left out of the list rather than crashing it. */
+    if (!info) { continue; }
     var amount = entry.amount;
     var cls = amount > 0 ? 'd-good' : (amount < 0 ? 'd-bad' : 'd-neutral');
     var shown = amount === 0 ? 'no change' : (amount > 0 ? '+' + amount : '' + amount);
@@ -1137,10 +1181,45 @@ function showResult(config) {
    SECTION 13: STARTING AND ADVANCING DAYS
    ------------------------------------------------------------ */
 
+/* The starting base. It lives in world.js, which loads after this file,
+   so it is read through this guard. beginDay() already falls back to a
+   plain button game when world.js is missing, and that fallback must
+   keep working, so nothing here may assume the file is there. */
+function defaultLayout() {
+  return (typeof DEFAULT_LAYOUT !== 'undefined') ? DEFAULT_LAYOUT : [];
+}
+
+/* The base the next mission will be played on.
+   A later phase will build this from the landing site the player
+   picked and the layout they designed. Until then it is simply the
+   starting base, which is exactly what has always been played. */
+function currentPlan() {
+  return { layout: defaultLayout() };
+}
+
+/* Copy a planned base into the running game and put it on the surface.
+   This is the only place the plan is read: once the mission has
+   started, `game.layout` is the base and nothing looks back at the
+   plan, so the simulation can never be changed halfway through by
+   something upstream. */
+function applyBase(plan) {
+  var wanted = (plan && plan.layout && plan.layout.length) ? plan.layout : defaultLayout();
+
+  game.layout = [];
+  for (var i = 0; i < wanted.length; i++) {
+    game.layout.push({ uid: wanted[i].uid, type: wanted[i].type, x: wanted[i].x });
+  }
+
+  if (window.world && typeof world.applyLayout === 'function') {
+    world.applyLayout(game.layout);
+  }
+}
+
 function startMission() {
   game = createNewGame();
   lastRendered = null;
   closeStationPanel();
+  applyBase(currentPlan());
   if (window.world && typeof world.reset === 'function') { world.reset(); }
   showScreen('game');
   beginDay();
@@ -1209,28 +1288,38 @@ function goToNextDay() {
    where the 2D scene is allowed to affect the mission.
    ------------------------------------------------------------ */
 
-/* The astronaut pressed E next to a station. */
+/* The astronaut pressed E next to a structure. `stationId` is the id
+   of that one placed structure, which is unique even when a base
+   holds two structures of the same kind. */
 function openStation(stationId) {
   if (game.finished || game.stationOpen || game.advancing) { return; }
 
-  /* If today's scenario is hosted here, run the normal decision flow. */
-  if (game.stationEvent === stationId && game.stationEventKey && !game.decisionLocked) {
+  var station = findPlacedStation(stationId);
+  if (!station) { return; }
+
+  /* If today's scenario is hosted by this KIND of structure, run the
+     normal decision flow. */
+  if (game.stationEvent === station.type && game.stationEventKey && !game.decisionLocked) {
     showEvent(game.stationEventKey);
     openStationPanel();
     return;
   }
 
-  showStationPanel(stationId);
+  showStationPanel(station);
 }
 
-function showStationPanel(stationId) {
-  var station = null;
-  if (window.STATIONS) {
-    for (var i = 0; i < STATIONS.length; i++) {
-      if (STATIONS[i].id === stationId) { station = STATIONS[i]; break; }
-    }
+/* Find one placed structure by its unique id. */
+function findPlacedStation(stationId) {
+  if (typeof STATIONS === 'undefined') { return null; }
+  for (var i = 0; i < STATIONS.length; i++) {
+    if (STATIONS[i].id === stationId) { return STATIONS[i]; }
   }
+  return null;
+}
+
+function showStationPanel(station) {
   if (!station) { return; }
+  var type = station.type;
 
   game.stationOpen = true;
 
@@ -1241,9 +1330,9 @@ function showStationPanel(stationId) {
   el('event-result').hidden = true;
   el('btn-next-day').hidden = true;
 
-  var statusText = STATION_STATUS[stationId] ? STATION_STATUS[stationId]() : '';
-  var already = !!game.serviced[stationId];
-  var service = STATION_SERVICE[stationId];
+  var statusText = STATION_STATUS[type] ? STATION_STATUS[type](station) : '';
+  var already = !!game.serviced[type];
+  var service = STATION_SERVICE[type];
 
   var html = '';
   html += '<div class="station-readout">' + statusText + '</div>';
@@ -1263,7 +1352,7 @@ function showStationPanel(stationId) {
   el('event-options').innerHTML = html;
 
   var serviceBtn = el('btn-service');
-  if (serviceBtn) { serviceBtn.addEventListener('click', function () { doService(stationId); }); }
+  if (serviceBtn) { serviceBtn.addEventListener('click', function () { doService(type); }); }
   el('btn-leave-station').addEventListener('click', function () {
     game.dayLog.push({ key: 'day', amount: 0, note: 'Moved on without a task' });
     el('btn-next-day').hidden = false;
@@ -1275,14 +1364,15 @@ function showStationPanel(stationId) {
   openStationPanel();
 }
 
-/* Actually perform the station service action. */
-function doService(stationId) {
-  if (game.finished || game.serviced[stationId]) { return; }
+/* Actually perform the station service action. Keyed by structure
+   type, so a base with two depots services the depot type once. */
+function doService(stationType) {
+  if (game.finished || game.serviced[stationType]) { return; }
 
-  var service = STATION_SERVICE[stationId];
+  var service = STATION_SERVICE[stationType];
   if (!service) { return; }
 
-  game.serviced[stationId] = true;
+  game.serviced[stationType] = true;
   applyDeltas(service.deltas);
   applyMods(service.mods);
 
@@ -1291,7 +1381,7 @@ function doService(stationId) {
 
   showResult({
     tone: 'good',
-    heading: stationId.charAt(0).toUpperCase() + stationId.slice(1) + ' Serviced',
+    heading: stationType.charAt(0).toUpperCase() + stationType.slice(1) + ' Serviced',
     story: 'The maintenance is finished. This station is back in good order for the rest of the mission.',
     entries: game.dayLog,
     lesson: 'Looking after a system once is cheaper than running it broken for many days.'
