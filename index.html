@@ -330,6 +330,7 @@
         <span class="hud-chip">Day <strong id="stat-day">1</strong> / <span id="stat-max-days">16</span></span>
         <span class="hud-chip">Crew <strong id="stat-crew">3</strong></span>
         <button id="btn-pause" class="btn btn-ghost btn-small" type="button">Pause</button>
+        <button id="btn-colony" class="btn btn-ghost btn-small" type="button">Colony</button>
         <button id="btn-restart-quick" class="btn btn-ghost btn-small" type="button">Restart</button>
       </div>
 
@@ -449,6 +450,9 @@
       <div id="build-cargo" class="build-cargo"></div>
       <div id="build-summary" class="build-summary"></div>
       <div id="build-actions" class="build-actions"></div>
+      <button id="btn-build-colony" class="btn btn-ghost btn-small" type="button">
+        Colony view
+      </button>
       <button id="btn-build-back" class="btn btn-ghost btn-small" type="button">
         Change landing site
       </button>
@@ -548,6 +552,60 @@
   </div>
 </section>
 
+<!-- ============================================================
+     SCREEN 7: THE COLONY SURVEY (2.5D)
+
+     A second way of looking at the SAME base the 2D play view shows.
+     It reads game.layout rather than holding any base of its own, so
+     what is built here is what is built there.
+     ============================================================ -->
+<section id="screen-colony" class="screen screen-colony" hidden>
+  <div class="colony-stage">
+
+    <canvas id="colony-canvas" aria-label="Isometric view of the lunar colony"></canvas>
+
+    <!-- ---------- colony HUD ---------- -->
+    <div class="hud colony-hud">
+      <div class="hud-top">
+        <span class="base-badge">BASE SELENE &mdash; COLONY</span>
+        <span class="hud-spacer"></span>
+        <span id="colony-day-indicator" class="hud-chip" aria-live="polite">
+          <span class="day-icon" aria-hidden="true"></span>
+          <span id="colony-day-text">Day 1</span>
+          <span id="colony-time-text" class="time-of-day">Day</span>
+        </span>
+        <span class="hud-spacer"></span>
+        <button id="btn-colony-centre" class="btn btn-ghost btn-small" type="button">Recentre</button>
+        <button id="btn-colony-zoom-out" class="btn btn-ghost btn-small" type="button" aria-label="Zoom out">&minus;</button>
+        <button id="btn-colony-zoom-in" class="btn btn-ghost btn-small" type="button" aria-label="Zoom in">+</button>
+        <button id="btn-colony-back" class="btn btn-primary btn-small" type="button">Back to base</button>
+      </div>
+    </div>
+
+    <!-- ---------- side panel ---------- -->
+    <div class="colony-side">
+      <h2 class="panel-title">Colony Survey</h2>
+      <p class="colony-hint">
+        Drag to look around. Scroll or use + and &minus; to zoom.
+        W A S D walks the astronaut.
+      </p>
+      <div id="colony-palette" class="colony-palette" role="group" aria-label="Structures to place"></div>
+      <div id="colony-panel" class="colony-panel"></div>
+      <p class="colony-legend">
+        <strong>Drag</strong> look &middot; <strong>Scroll</strong> zoom &middot;
+        <strong>Click</strong> inspect &middot; <strong>WASD</strong> walk &middot;
+        <strong>Esc</strong> back
+      </p>
+      <p class="tiny-note">
+        Colony landscape, module sizes and lighting are art, not NASA
+        operational data. Module capability figures come from the same
+        simplified simulation as the rest of the game.
+      </p>
+    </div>
+
+  </div>
+</section>
+
 <script src="sprites.js"></script>
 <script src="sites.js"></script>
 <script src="lunar-data.js"></script>
@@ -564,5 +622,12 @@
 <script src="world.js"></script>
 <script src="builder.js"></script>
 <script src="fx.js"></script>
+<!-- colony.js is the 2.5D colony survey. It loads LAST on purpose: it
+     is the only file that needs every other file to have already run,
+     because it reads the structure catalogue from world.js, the
+     placement rules from builder.js, the sprite helper from world.js
+     and the simulation from script.js and mission.js. If it is
+     missing, the game below is unaffected. -->
+<script src="colony.js"></script>
 </body>
 </html>
