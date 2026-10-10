@@ -688,6 +688,14 @@ function selectedZone() {
 function confirmLandingSite() {
   var zone = selectedZone();
   if (!zone) { return false; }
+
+  /* With the builder in place, landing here means laying out the base
+     first. If the world is missing the builder cannot run, so the
+     mission starts straight away, which is what happened before
+     Phase 2. */
+  if (typeof openBuilder === 'function' && openBuilder()) {
+    return true;
+  }
   if (typeof startMission === 'function') { startMission(); }
   return true;
 }

@@ -648,6 +648,12 @@ var STATION_SERVICE = {
   console: {
     label: 'Nothing to service here, but you can read the board',
     deltas: []
+  },
+  pad: {
+    label: 'Clear dust off the pad and check the beacons',
+    deltas: [
+      { key: 'power', amount: 8, note: 'Pad beacons and floodlights working' }
+    ]
   }
 };
 
@@ -712,6 +718,11 @@ var STATION_STATUS = {
   console: function (station) {
     return objectivesDone() + ' of ' + OBJECTIVES.length +
            ' objectives are complete on mission day ' + game.day + '.' +
+           placedNote(station);
+  },
+  pad: function (station) {
+    return 'The lander touches down here and the rover parks beside it. ' +
+           'Electricity is ' + Math.round(game.power) + ' out of 100.' +
            placedNote(station);
   }
 };
@@ -1196,10 +1207,12 @@ function defaultLayout() {
    the map, the modifiers are all neutral so nothing changes. */
 function currentPlan() {
   var zone = (typeof selectedZone === 'function') ? selectedZone() : null;
+  var built = (typeof builderLayout === 'function') ? builderLayout() : null;
+
   return {
     zoneId: zone ? zone.id : null,
     zoneMods: (typeof zoneModsFor === 'function') ? zoneModsFor(zone) : null,
-    layout: defaultLayout()
+    layout: (built && built.length) ? built : defaultLayout()
   };
 }
 
@@ -1771,6 +1784,14 @@ function wireUpMap() {
   }
 
   if (typeof setupMapInput === 'function') { setupMapInput(); }
+  if (typeof setupBuilderInput === 'function') { setupBuilderInput(); }
+
+  var backToMap = el('btn-build-back');
+  if (backToMap) {
+    backToMap.addEventListener('click', function () {
+      if (typeof builderBackToMap === 'function') { builderBackToMap(); }
+    });
+  }
 }
 
 function wireUp() {

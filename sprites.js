@@ -34,6 +34,7 @@ var SPRITE_MAP = {
   "station_food": { x: 96, y: 288, w: 96, h: 96 },
   "station_habitat": { x: 576, y: 192, w: 96, h: 96 },
   "station_oxygen": { x: 672, y: 192, w: 96, h: 96 },
+  "station_pad": { x: 576, y: 288, w: 96, h: 96 },
   "station_solar_bad": { x: 288, y: 288, w: 96, h: 96 },
   "station_solar_ok": { x: 192, y: 288, w: 96, h: 96 },
   "station_water": { x: 0, y: 288, w: 96, h: 96 },
@@ -73,5 +74,6 @@ var SPRITE_SINGLE = {
   solarOk:  'station_solar_ok',
   solarBad: 'station_solar_bad',
   console:  'station_console',
-  depot:    'station_depot'
+  depot:    'station_depot',
+  pad:      'station_pad'
 };

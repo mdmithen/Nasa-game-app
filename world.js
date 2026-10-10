@@ -116,15 +116,20 @@ var CFG = {
    life-support systems are capped at 1 because a second oxygen plant
    or a second mission console would not give the crew anything extra.
    Solar arrays and supply depots scale with a bigger base, so more
-   than one of those is allowed. */
+   than one of those is allowed.
+
+   `cost` is how much of the cargo a base may spend on this, in the
+   builder's invented supply units. `role` says what it actually does
+   for the crew. Both are GAME ESTIMATE values. */
 var STATION_TYPES = [
-  { id: 'habitat', name: 'Habitat',         limit: 1, sprite: 'station_habitat', blurb: 'Crew quarters and life support.' },
-  { id: 'oxygen',  name: 'Oxygen System',   limit: 1, sprite: 'station_oxygen',  blurb: 'Makes and stores breathable air.' },
-  { id: 'water',   name: 'Water Recycler',  limit: 1, sprite: 'station_water',   blurb: 'Cleans and reuses water.' },
-  { id: 'food',    name: 'Food Station',    limit: 1, sprite: 'station_food',    blurb: 'Hydroponics and food stores.' },
-  { id: 'solar',   name: 'Solar Panels',    limit: 3, sprite: 'station_solar_ok', solar: true, blurb: 'Turns sunlight into electricity.' },
-  { id: 'depot',   name: 'Supply Depot',    limit: 3, sprite: 'station_depot',   blurb: 'Spare parts, rations and the rover.' },
-  { id: 'console', name: 'Mission Console', limit: 1, sprite: 'station_console', blurb: 'Mission objectives and status.' }
+  { id: 'habitat', name: 'Habitat',         limit: 1, cost: 20, sprite: 'station_habitat', blurb: 'Crew quarters and life support.',   role: 'Crew sleep and health. Resting here recovers health.' },
+  { id: 'oxygen',  name: 'Oxygen System',   limit: 1, cost: 18, sprite: 'station_oxygen',  blurb: 'Makes and stores breathable air.', role: 'Scrubs carbon dioxide and holds the air supply.' },
+  { id: 'water',   name: 'Water Recycler',  limit: 1, cost: 16, sprite: 'station_water',   blurb: 'Cleans and reuses water.',           role: 'Returns clean water every day instead of losing it.' },
+  { id: 'food',    name: 'Food Station',    limit: 1, cost: 14, sprite: 'station_food',    blurb: 'Hydroponics and food stores.',       role: 'Grows food, so the stores stop shrinking.' },
+  { id: 'solar',   name: 'Solar Panels',    limit: 3, cost: 8,  sprite: 'station_solar_ok', solar: true, blurb: 'Turns sunlight into electricity.', role: 'Makes the electricity everything else runs on.' },
+  { id: 'depot',   name: 'Supply Depot',    limit: 3, cost: 10, sprite: 'station_depot',   blurb: 'Spare parts, rations and the rover.', role: 'Resupplies the crew and repairs equipment.' },
+  { id: 'console', name: 'Mission Console', limit: 1, cost: 12, sprite: 'station_console', blurb: 'Mission objectives and status.',     role: 'Tracks objectives and the mission clock.' },
+  { id: 'pad',     name: 'Landing Pad',     limit: 1, cost: 10, sprite: 'station_pad',     blurb: 'Where the ship lands and the rover parks.', role: 'Delivers supplies and takes the crew home.' }
 ];
 
 /* Fast lookup by type id, so resolving a layout entry never walks the
@@ -329,10 +334,19 @@ function clearOfStations(x, w) {
 }
 
 function buildTerrain() {
+  /* Changing the layout must never hand the player free supplies, so
+     anything already collected stays collected and any dust already in
+     the air is left alone. Both are matched on position. */
+  var takenBefore = {};
+  for (var p0 = 0; p0 < pickups.length; p0++) {
+    takenBefore[Math.round(pickups[p0].x) + ':' + Math.round(pickups[p0].y)] = pickups[p0].taken;
+  }
+  var keepParticles = particles;
+
   solids = [];
   platforms = [];
   pickups = [];
-  particles = [];
+  particles = keepParticles;
 
   /* Rocks you have to jump over. A candidate that would end up sitting
      under a placed structure is skipped, so no matter how the base is
@@ -375,7 +389,13 @@ function buildTerrain() {
     { x: 2170, y: 340 }, { x: 460, y: 340 }
   ];
   for (var p = 0; p < pickData.length; p++) {
-    pickups.push({ x: pickData[p].x, y: pickData[p].y, taken: false, bob: Math.random() * 6 });
+    var key = Math.round(pickData[p].x) + ':' + Math.round(pickData[p].y);
+    pickups.push({
+      x: pickData[p].x,
+      y: pickData[p].y,
+      taken: takenBefore[key] === true,
+      bob: Math.random() * 6
+    });
   }
 }
 
@@ -1166,6 +1186,12 @@ function render() {
     ctx.fillRect(0, 0, w, h);
   }
 
+  /* The base builder draws its own guides on top of the finished
+     scene. It lives in builder.js and is absent until then. */
+  if (world.mode === 'build' && typeof drawBuildOverlay === 'function') {
+    drawBuildOverlay(ctx, camX);
+  }
+
   drawPrompt(ctx, w, h, camY);
 }
 
@@ -1216,6 +1242,7 @@ var world = {
   viewH: 620,
   running: false,
   paused: false,
+  mode: 'play',          // 'play' or 'build'
   loopHandle: null,
   lastTime: 0,
   stationEvent: null
@@ -1232,10 +1259,12 @@ function worldLoop(now) {
   t += dt;
 
   /* The astronaut freezes while a station panel is open, so the
-     player cannot walk away mid-decision. */
+     player cannot walk away mid-decision, and while the base is being
+     built, where the player is placing structures instead of walking. */
   var panelOpen = (typeof game !== 'undefined' && game && game.stationOpen);
+  var building = (world.mode === 'build');
 
-  if (!world.paused && !panelOpen) {
+  if (!world.paused && !panelOpen && !building) {
     updateHero();
     updateCamera();
     updateParticles();
@@ -1358,6 +1387,12 @@ world.applyLayout = function (layout) {
 /* The base currently on the surface, as a fresh copy. */
 world.currentLayout = function () {
   return copyLayout(baseLayout);
+};
+
+/* 'play' is the mission. 'build' is the base builder, where the
+   astronaut stands still and the player places structures. */
+world.setMode = function (mode) {
+  world.mode = (mode === 'build') ? 'build' : 'play';
 };
 
 /* Tell the world which kind of structure hosts today's mission. */

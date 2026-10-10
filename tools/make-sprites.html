@@ -575,6 +575,34 @@ function drawDepot(ctx, cx, groundY) {
   ctx.restore();
 }
 
+/* The landing pad and rover parking area. A flat marked pad with a
+   guidance cross, plus a small rover parked to one side. */
+function drawPad(ctx, cx, groundY) {
+  ctx.save();
+  ctx.translate(cx, groundY);
+
+  /* the pad slab */
+  shape(ctx, -46, -12, 92, 12, 4, '#8f97a8', '#5e6472', METAL_LINE, 2.2);
+
+  /* guidance cross on the slab */
+  line(ctx, -26, -6, -10, -6, 'rgba(255,209,102,0.9)', 3);
+  line(ctx, 10, -6, 26, -6, 'rgba(255,209,102,0.9)', 3);
+  line(ctx, -4, -9, -4, -3, 'rgba(255,209,102,0.9)', 3);
+  line(ctx, 4, -9, 4, -3, 'rgba(255,209,102,0.9)', 3);
+
+  /* landing beacon */
+  circle(ctx, -40, -22, 6, '#7fd4f5', '#2f7fd6', METAL_LINE, 2);
+  glow(ctx, -40, -22, 13, 'rgba(127,212,245,0.45)');
+
+  /* a small rover parked on the pad */
+  shape(ctx, 4, -34, 34, 14, 5, METAL_HI, METAL_LO, METAL_LINE, 2);
+  shape(ctx, 9, -44, 17, 11, 3, '#7fd4f5', '#2f7fd6', METAL_LINE, 2);
+  circle(ctx, 12, -21, 5.5, '#5a6478', '#2c3345', METAL_LINE, 1.8);
+  circle(ctx, 31, -21, 5.5, '#5a6478', '#2c3345', METAL_LINE, 1.8);
+
+  ctx.restore();
+}
+
 /* ============================================================
    BUILD THE SHEET
    ============================================================ */
@@ -594,7 +622,8 @@ var SPRITE_ORDER = [
   'work_0', 'work_1', 'work_2', 'work_3',
   'wave_0', 'wave_1',
   'station_habitat', 'station_oxygen', 'station_water', 'station_food',
-  'station_solar_ok', 'station_solar_bad', 'station_console', 'station_depot'
+  'station_solar_ok', 'station_solar_bad', 'station_console', 'station_depot',
+  'station_pad'
 ];
 
 function addFrame(name, drawFn) {
@@ -685,6 +714,7 @@ function buildSheet() {
   addFrame('station_solar_bad', function (ctx, cx, gy) { drawSolar(ctx, cx, gy, true); });
   addFrame('station_console', drawConsole);
   addFrame('station_depot', drawDepot);
+  addFrame('station_pad', drawPad);
 
   /* the canvas was sized at the top of this function, before drawing */
 

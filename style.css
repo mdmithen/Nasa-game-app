@@ -1886,9 +1886,192 @@ kbd {
   .map-actions .btn { flex: 1 1 auto; }
 }
 
-/* the map loop stops on its own when the screen hides, but if motion
-   is reduced the pulsing markers must not restart either */
+/* ============================================================
+   18. THE BASE BUILDER (Phase 2)
+   The builder reuses the game screen and its canvas. While it is
+   open the play HUD steps out of the way, and nothing here is on
+   screen during a normal mission.
+   ============================================================ */
+
+/* the play interface is hidden while building, and only while building */
+.screen-game.is-building .hud,
+.screen-game.is-building .touch-pad,
+.screen-game.is-building .nasa-below { display: none; }
+
+.screen-game.is-building .stage {
+  height: 50vh;
+  height: 50dvh;
+  min-height: 300px;
+  border-bottom-color: var(--cyan-dim);
+}
+
+#game-canvas { cursor: crosshair; }
+.screen-game.is-building #game-canvas { cursor: copy; }
+
+.build-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 18px;
+  padding: 18px 20px 34px;
+  align-items: start;
+}
+
+.build-heading { font-size: 1.15rem; margin-bottom: 4px; }
+.build-lead { color: var(--grey); font-size: .84rem; margin-bottom: 14px; }
+.build-note { margin-top: 12px; }
+
+/* ---- palette ---- */
+
+.build-palette {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 8px;
+}
+
+.build-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  background: rgba(16, 29, 66, .75);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--white);
+  padding: 8px 10px;
+  font: inherit;
+  transition: border-color .16s, background .16s, transform .16s;
+}
+
+.build-item:hover:not(:disabled) { border-color: var(--cyan-dim); transform: translateY(-1px); }
+.build-item.is-armed {
+  border-color: #ffd166;
+  background: rgba(255, 209, 102, .12);
+  box-shadow: 0 0 0 1px rgba(255, 209, 102, .4);
+}
+.build-item.is-blocked { opacity: .45; cursor: not-allowed; }
+.build-item.is-blocked .build-item-have { color: var(--bad); }
+
+.build-thumb { flex: 0 0 44px; width: 44px; height: 44px; image-rendering: auto; }
+
+.build-item-text { flex: 1 1 auto; min-width: 0; }
+.build-item-name { display: block; font-weight: 700; font-size: .88rem; }
+.build-item-role {
+  display: block;
+  font-size: .7rem;
+  color: var(--grey);
+  line-height: 1.35;
+}
+
+.build-item-meta { flex: 0 0 auto; text-align: right; }
+.build-item-cost {
+  display: block;
+  font-weight: 800;
+  font-size: .9rem;
+  color: var(--warn);
+}
+.build-item-have { display: block; font-size: .68rem; color: var(--grey); }
+
+/* ---- cargo ---- */
+
+.build-cargo {
+  background: rgba(10, 20, 48, .7);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+
+.build-cargo-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: .8rem;
+  color: var(--grey);
+}
+.build-cargo-head strong { color: var(--white); font-size: 1.05rem; }
+
+.build-cargo-bar {
+  height: 9px;
+  margin: 8px 0 6px;
+  background: rgba(255, 255, 255, .1);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.build-cargo-bar-fill { display: block; height: 100%; background: linear-gradient(90deg, #d99a1c, #ffd166); }
+.build-cargo-bar-fill.is-low { background: linear-gradient(90deg, #d97a2c, #ffb35c); }
+.build-cargo-bar-fill.is-over { background: linear-gradient(90deg, #d94a62, #fb7185); }
+
+.build-cargo-note { font-size: .72rem; color: var(--grey); margin: 0; }
+.build-cargo-note strong { color: var(--white); }
+
+/* ---- layout summary ---- */
+
+.build-summary {
+  background: rgba(10, 20, 48, .7);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.build-summary-head { font-size: .84rem; margin-bottom: 8px; }
+.build-summary-empty { font-size: .78rem; color: var(--grey); margin: 0; }
+
+.build-rows { list-style: none; margin: 0; padding: 0; }
+.build-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  font-size: .78rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.build-row:hover { background: rgba(79, 209, 224, .1); }
+.build-row.is-selected { border-color: var(--cyan); background: rgba(79, 209, 224, .14); }
+.build-row-x { color: var(--grey); font-size: .72rem; white-space: nowrap; }
+
+/* ---- actions ---- */
+
+.build-actions { margin-bottom: 10px; }
+.build-hint { font-size: .78rem; color: var(--cyan); margin: 0 0 8px; }
+
+.build-blocked {
+  font-size: .76rem;
+  color: #ffc4c4;
+  background: rgba(60, 10, 20, .55);
+  border-left: 2px solid var(--bad);
+  padding: 8px 10px;
+  margin: 0 0 10px;
+  border-radius: 0 7px 7px 0;
+}
+
+.build-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.build-buttons .btn { margin-top: 0; }
+
+/* ---- narrow screens ---- */
+
+@media (max-width: 900px) {
+  .build-bar { grid-template-columns: 1fr; padding: 14px 14px 28px; }
+  .build-palette { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+}
+
+@media (max-width: 560px) {
+  .screen-game.is-building .stage { height: 40vh; min-height: 240px; }
+  .build-palette { grid-template-columns: 1fr; }
+  .build-heading { font-size: 1rem; }
+  .build-buttons .btn { flex: 1 1 auto; }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  /* the map draws one still frame, and the builder must not hover-lift */
   .zone-chip { transition: none; }
   .zone-chip:hover { transform: none; }
+  .build-item { transition: none; }
+  .build-item:hover:not(:disabled) { transform: none; }
 }

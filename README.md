@@ -35,6 +35,7 @@ Chrome, Edge or Firefox.
 | `sprites.js` | Generated frame map — where each frame sits inside `assets/sprites.png` |
 | `sites.js` | The landing site data: real coordinates, real facts, and the clearly separated game estimates |
 | `map.js` | The landing map screen: draws the south pole, hit-testing, selection and comparison |
+| `builder.js` | The base builder: palette, placement rules, cargo budget and the layout summary |
 | `fx.js` | Animations only — the canvas space background and all UI motion |
 | `assets/sprites.png` | The one image file. Astronaut and structure artwork |
 | `tools/make-sprites.html` | Draws the sprite sheet in a browser |
@@ -153,12 +154,90 @@ This is the part that matters most for honesty, so it is enforced in code and in
 own invented percentages ever appear inside its `facts[]`, so a game estimate cannot
 quietly end up under a `REAL SCIENCE` label.
 
-### What the site does and does not do yet
+---
 
-The chosen site is carried through `currentPlan()` into `game.zoneId`, and the report on
-the results screen names it. **The site does not yet change any simulation number** —
-that is Phase 3, and until then the neutral modifiers keep day-one values exactly as
-they have always been. There is a test for that too.
+## 2f. The base builder
+
+Confirming a site opens the builder, and the mission starts from whatever is built.
+
+**The builder is a mode, not a screen.** It runs inside `#screen-game` on the same
+canvas, with the same sprites, camera, terrain and astronaut code. `world.mode` is
+`'play'` or `'build'`, and it defaults to `'play'`; while building, the astronaut is
+frozen and the play HUD, touch pad and NASA panel step out of the way behind a single
+`.is-building` class. That means there is no second renderer and no second copy of the
+scene, so the arrangement you make is literally the base you walk around in.
+
+### The eight structures
+
+| Structure | Type | Cargo | Limit | Purpose |
+|---|---|---|---|---|
+| Astronaut habitat | `habitat` | 20 | 1 | Crew sleep; resting here recovers health |
+| Oxygen and life support | `oxygen` | 18 | 1 | Scrubs carbon dioxide, holds the air supply |
+| Water recycling station | `water` | 16 | 1 | Returns clean water every day |
+| Food station | `food` | 14 | 1 | Hydroponics; food stops shrinking |
+| Solar panels | `solar` | 8 | **3** | Makes the electricity everything else runs on |
+| Supply depot | `depot` | 10 | **3** | Resupplies the crew and repairs equipment |
+| Mission control | `console` | 12 | 1 | Tracks objectives and the mission clock |
+| Landing pad and rover park | `pad` | 10 | 1 | Delivers supplies and takes the crew home |
+
+A minimum base costs **108**. The landing site decides how much cargo is delivered
+(108 at Cabeus B up to 150 at Nobile), so a hard site leaves no room for a second solar
+array and an easy one does. That is the trade-off the zone choice and the layout choice
+pull against each other.
+
+Costs and limits are `GAME ESTIMATE` values and are tagged as such in the panel.
+
+### Placement rules
+
+| Rule | Why |
+|---|---|
+| Everything snaps to a 20 px grid | Nothing ends up half a pixel off |
+| Two structures must be 140 px apart | A sprite is 96 px wide, so 140 leaves 44 clear px — they can never overlap |
+| One structure of each type, except solar and depot which allow three | A second oxygen plant would give the crew nothing extra |
+| Nothing off the ends of the landing area | Keeps the base on walkable ground |
+| A structure may be built over a rock, which clears it | The rocks sit in the gaps between the shipped structures, so treating them as obstacles would leave almost nowhere to build |
+
+Every refusal states its reason — *"Too close to the supply depot. Keep 140px apart"* —
+rather than just refusing.
+
+The grid and the gap are both tuned against the shipped base, whose structures stand
+320 apart. A test asserts there are at least a dozen legal positions on the plot, so
+these two numbers cannot be tightened by accident until the map is unbuildable.
+
+### Controls
+
+| | |
+|---|---|
+| Click a palette entry | Arms that structure |
+| Move the pointer | A ghost follows, green if legal, red with a reason if not |
+| Click the ground | Place, or move the selected structure |
+| Click a placed structure | Select it — also listed in the layout summary |
+| `X`, `Delete` or **Remove** | Take it away and get the cargo back |
+| `Esc` or right-click | Cancel |
+| **Place in first free spot** | The keyboard route; finds a legal position by itself |
+| `Enter` | Continue, once the base is complete |
+
+### What it will not let you do
+
+A base that is missing a structure the mission is going to ask for cannot be
+continued, and the panel says which ones are still needed. Every placement, move and
+removal is checked against the same rules, so a structure can never be left half
+placed, overlapping, off the map, over its limit, or unaffordable.
+
+### The one thing worth knowing about the code
+
+`buildTerrain()` used to rebuild the floating canisters from scratch every time the
+layout changed. In a mission, editing the layout would therefore have respawned all
+eight of them — a free supply every time you moved a building. `buildTerrain()` now
+carries the collected state across, and there is a test that relayouts five times and
+asserts nothing came back.
+
+### What it does not do yet
+
+Phase 2 changes no simulation number. The layout is handed over once, by
+`builderLayout()` → `currentPlan()` → `applyBase()`, and the mission then plays exactly
+as it did before, with the same day-one values. Making the layout and the site affect
+oxygen, power and food is Phase 3.
 
 ---
 
@@ -522,6 +601,41 @@ errors). The Phase 0 checks still pass, now routed through the map.
 - `script.js` still runs standalone with `world.js` absent, and the site is still carried
   through to the mission
 - The 2D Moon Base is still **byte-for-byte identical** to before Phase 1
+
+### 7b. Phase 2 base builder
+
+Re-tested after adding the builder (162 automated checks total, 0 failures, no
+JavaScript errors). The Phase 0 and Phase 1 checks still pass, now routed through the
+builder.
+
+- All eight structures exist, each with a cost and a role, and the pad has its own
+  sprite frame, service and status readout
+- **The eight together cost 108, which the easiest site can afford and the hardest
+  cannot improve on** — so the zone choice really does squeeze the layout
+- The builder starts from the shipped base, hides the play HUD and the NASA panel, and
+  `world.mode` is `'build'`; leaving restores all of it exactly
+- Placing snaps to the grid, deducts cargo, and is refused with a stated reason when
+  too close, off the edge, over the limit or unaffordable
+- **There are at least a dozen legal positions on the plot**, and two structures can
+  never visually overlap. Both are asserted, because tightening the grid or the gap
+  would silently make the map unbuildable
+- Solar panels and supply depots allow three; habitat, oxygen, water, food, console and
+  pad refuse a second
+- Moving a structure works, is refused into an occupied spot without moving it, and does
+  not double-charge the cargo; removing refunds it exactly
+- A structure may be built over a rock and the rock is cleared
+- **Collected canisters stay collected across five relayouts**, and editing the layout
+  cannot farm supplies
+- A base missing the pad cannot continue, and the panel names what is still needed
+- A finished base launches a real mission that uses all eight structures; the pad is
+  walkable to, has a panel, and can be serviced
+- The astronaut still walks and jumps after building; the landing map still works
+  afterwards; changing site keeps the base that was built
+- No horizontal overflow at **390 × 844**, **768 × 1024** or **1440 × 900**
+- `script.js` still runs standalone with `world.js` absent: the builder steps aside and
+  the mission starts directly, exactly as it did before Phase 2
+- The **play** scene is still **byte-for-byte identical** to the previous commit at four
+  camera positions
 
 ### Still worth checking by hand
 

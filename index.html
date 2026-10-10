@@ -415,6 +415,36 @@
 
   </div>
 
+  <!-- ---------- base builder (Phase 2) ----------
+       Shown only while building. The world above is the same canvas
+       the mission uses, so what you arrange here is what you walk
+       around in. -->
+  <div id="build-bar" class="build-bar" hidden>
+
+    <div class="build-palette-wrap">
+      <h2 class="build-heading">Choose what to build</h2>
+      <p class="build-lead">
+        Pick a structure, then click the ground to place it. Click a placed
+        structure to move or remove it.
+      </p>
+      <div id="build-palette" class="build-palette" role="group" aria-label="Structures"></div>
+      <p class="tiny-note build-note">
+        Costs and supply limits are <span class="tag tag-game">GAME ESTIMATE</span> values
+        invented for this game.
+      </p>
+    </div>
+
+    <div class="build-side">
+      <div id="build-cargo" class="build-cargo"></div>
+      <div id="build-summary" class="build-summary"></div>
+      <div id="build-actions" class="build-actions"></div>
+      <button id="btn-build-back" class="btn btn-ghost btn-small" type="button">
+        Change landing site
+      </button>
+    </div>
+
+  </div>
+
   <!-- ---------- NASA panel (kept from the previous version) ---------- -->
   <section class="panel panel-nasa nasa-below">
     <h2 class="panel-title">NASA Open Data</h2>
@@ -493,6 +523,7 @@
 <script src="map.js"></script>
 <script src="script.js"></script>
 <script src="world.js"></script>
+<script src="builder.js"></script>
 <script src="fx.js"></script>
 </body>
 </html>

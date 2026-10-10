@@ -123,7 +123,8 @@ var SPRITE_SINGLE = {
   solarOk:  'station_solar_ok',
   solarBad: 'station_solar_bad',
   console:  'station_console',
-  depot:    'station_depot'
+  depot:    'station_depot',
+  pad:      'station_pad'
 };
 `;
 
